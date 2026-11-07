@@ -58,7 +58,7 @@ Optional extra rungs: R3 + edge updates (`--emlps`), and R3 with 4 layers (to te
 proposal.pdf
 README.md               this file
 AGENTS.md               instructions for coding agents (read before changing anything)
-environment.yml         conda env (to be created; pin versions once working)
+requirements.txt        pinned pip environment (scripts/setup_env.sh builds .venv/)
 src/amlinterp/
   data/aml.py           AMLworld loading, formatting, port numbers, chronological split
   data/patterns.py      parser for HI-Small_Patterns.txt -> per-edge (attempt_id, pattern_type)
@@ -80,12 +80,14 @@ runs/                   NOT committed (checkpoints, logs, activations)
 
 ## Setup
 
-The environment has not been set up yet. The plan:
+Python 3.12 virtualenv in `.venv/` (not committed). Versions are pinned in `requirements.txt`: torch 2.13.0 (CUDA 12.6), pyg_lib 0.9.0 and torch-geometric 2.8.1. PyG no longer needs `torch-scatter` or `torch-sparse`.
 
 ```bash
-conda env create -f environment.yml    # Python + PyTorch + PyTorch Geometric
-conda activate amlinterp
+bash scripts/setup_env.sh        # once; on FarmShare it loads the python/3.12.3 module
+source scripts/activate.sh       # every session (also used inside Slurm jobs)
 ```
+
+On a laptop without `module`, use any Python ≥3.10 and run the same script.
 
 **AMLworld data.** Download `HI-Small_Trans.csv` and `HI-Small_Patterns.txt` from Kaggle
 (`ealtman2019/ibm-transactions-for-anti-money-laundering-aml`) into `data/raw/`. Then preprocess once and cache

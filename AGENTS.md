@@ -34,6 +34,8 @@ The four rungs (R0–R3) must differ **only** in the adaptation being added:
 
 4. **Synthetic graphs: use the random circulant generator. Do not plant patterns.**
    - Parameters: n=8192 nodes, average degree d=6, radius r=11.1. Each edge picks u uniformly and v = round(N(u, r)) mod n. Generate an independent graph for train, val and test.
+   - m = ⌊nd/2⌋ = 24,576 edges, with self-loops **re-drawn**. Keeping them undershoots Egressy Table 3 by 2–5 points on C4–C6, S-G and B-C (verified 2026-11-07). Synthetic edges have no features; a random `edge_time` orders the ports.
+   - Egressy F.3: synthetic runs use the full neighborhood (no sampling) and 6 layers.
    - Label every pattern by **enumerating** it in the graph.
    - Planting patterns creates degree shortcuts, which would make degree neurons look like pattern detectors.
    - Label definitions (Egressy App. D.2):
@@ -110,7 +112,13 @@ building analyses on top.
 - **Never** train on login nodes. Use Slurm.
 - FarmShare GPU jobs use `--partition=gpu --qos=gpu --gpus=1`; GPUs are not allocated by default.
 - Sherlock's public `gpu` partition has P100 (16 GB) and P40 (24 GB) cards. Select one with `-C GPU_SKU:...`. Pascal GPUs may need an older CUDA build of PyTorch.
-- GPU types and per-user limits on FarmShare are not yet documented here. Check them with `sinfo -p gpu -N -o "%N %G %c %m %l"` and `sacctmgr show qos gpu`, then record the findings in this section.
+- FarmShare GPUs (checked 2026-11-07 with `sinfo`/`scontrol show node`/`sacctmgr show qos`):
+  - `gpu` partition: 6 nodes (`oat-01`…`oat-06`), each 4× **NVIDIA L40S 48 GB** (Ada, CC 8.9), 64 CPUs, 250 GB RAM. 24 GPUs total.
+  - QOS `gpu`: max 4 GPUs and 4 running jobs per user, 32 submitted jobs per user, 2-day wall limit.
+  - `MaxMemPerCPU=4000` MB, so a 32 GB job must request 8 CPUs (`--cpus-per-task=8 --mem=32G`).
+  - Heavily contended: on 2026-11-07, 22 of 24 GPUs were allocated and about 95 jobs were waiting on priority. Submit early; short `--time` requests backfill faster.
+  - Any current PyTorch CUDA 12.x wheel supports CC 8.9.
+- Scratch: `/scratch/users/$USER` (shared filesystem, 81% full on 2026-11-07). Home is `/home/users/$USER` (NFS).
 - Request roughly 1 GPU, 8 CPUs, 32 GB RAM, and a time limit of 16 hours or less. Submit rung × seed as one job array.
 - Keep data and runs on cluster scratch, not in home quota. Copy checkpoints and metrics back for analysis.
 - Make training resumable: checkpoint every epoch, so a job killed at its time limit can continue.
@@ -119,9 +127,11 @@ building analyses on top.
 
 Milestone due 2026-11-10:
 
-- [ ] `environment.yml` with pinned PyTorch + PyG; verify on laptop and cluster
+- [ ] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare login node (CPU); GPU check pending; laptop not yet verified
 - [ ] AMLworld download + preprocessing + cached ports; patterns parser + stats (counts per type per split, cycle-length distribution)
-- [ ] Synthetic circulant generator + labelers; train R0–R3 × 3 seeds (6 layers); reproduce Table 1 rows
+- [x] Synthetic circulant generator + labelers (`data/synthetic.py`, tests vs brute force; rates match Table 3)
+- [x] Vectorized port numbering (`data/ports.py`, tested against IBM's loop)
+- [ ] Synthetic training R0–R3 × 3 seeds (6 layers); reproduce Table 1 rows
 - [ ] AML training R0–R3 (cluster); compare to Table 2
 - [ ] Activation hooks with `ego_mode`; dissection (IoU + AP) on synthetic; first rung × concept heatmap
 - [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results)

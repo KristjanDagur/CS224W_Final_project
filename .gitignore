@@ -1,4 +1,45 @@
-**.txt
-**.csv
+# Data and run artifacts (never commit; see AGENTS.md)
+data/
+runs/
+*.csv
+*.parquet
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.h5
+*.safetensors
+HI-*_Patterns.txt
+HI-*_Trans.csv
+LI-*_Patterns.txt
+LI-*_Trans.csv
+
+# Slurm output
+slurm-*.out
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Environments and secrets
 .env
-.git
+.venv/
+venv/
+wandb/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

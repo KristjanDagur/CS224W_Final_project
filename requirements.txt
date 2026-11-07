@@ -1,0 +1,18 @@
+# Pinned environment for amlinterp (verified on FarmShare 2026-11-07, Python 3.12.3).
+# torch and pyg_lib come from their own indexes; use scripts/setup_env.sh rather than `pip install -r` alone.
+--extra-index-url https://download.pytorch.org/whl/cu126
+--find-links https://data.pyg.org/whl/torch-2.13.0+cu126.html
+torch==2.13.0+cu126
+pyg_lib==0.9.0+pt213cu126
+torch-geometric==2.8.1
+numpy==2.5.4
+pandas==3.1.1
+pyarrow==26.0.1
+scikit-learn==1.9.1
+scipy==1.18.1
+PyYAML==6.0.3
+tqdm==4.70.1
+matplotlib==3.11.2
+networkx==3.7
+ipykernel==7.4.0
+pytest==9.2.0
