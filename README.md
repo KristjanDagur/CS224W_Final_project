@@ -70,8 +70,8 @@ src/amlinterp/
   tasks/aml.py          AMLworld edge task, IBM protocol (adapted, Apache-2.0)       (done)
   metrics.py            minority-class F1, PR-AUC, validation threshold tuning       (done)
   train.py              training/eval entry point (one config = one run, resumable)  (done)
-  analysis/hooks.py     activation extraction (records ego mode)
-  analysis/dissection.py
+  analysis/hooks.py     activation extraction per scored item + batch protocol / ego mode (done)
+  analysis/dissection.py  unit x concept IoU + AP, coverage, permutation null, bootstrap CIs (done)
   analysis/sae.py
   analysis/ablation.py
   analysis/probes.py

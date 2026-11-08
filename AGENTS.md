@@ -160,7 +160,8 @@ Milestone due 2026-11-10:
 - [x] GIN ladder model + `train.py` (resumable) + synthetic task; smoke-tested on CPU
 - [ ] Synthetic training R0–R3 × 3 seeds (6 layers, lr 3e-3; `scripts/tasks/synth_final.txt`); reproduce Table 1 rows. FarmShare runs were lost to the outage on 2026-11-08; rerunning on Sherlock
 - [ ] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`); compare to Table 2. Rerunning on Sherlock (FarmShare outage)
-- [ ] Activation hooks with `ego_mode`; dissection (IoU + AP) on synthetic; first rung × concept heatmap
+- [x] Activation hooks with `ego_mode` (`analysis/hooks.py`) and dissection code (`analysis/dissection.py`: rate-matched IoU + AP, signed units, permutation null, group bootstrap); tested on planted units and tiny graphs
+- [ ] Dissection on trained synthetic runs; first rung × concept heatmap
 - [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results)
 
 After the milestone: AML dissection, the exact-vs-batch ego experiment, cycle-length stratification, SAEs, ablations,

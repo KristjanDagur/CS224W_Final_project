@@ -37,7 +37,7 @@ def test_planted_units_are_found_with_their_sign():
     concepts = np.stack([rng.random(n) < 0.3, rng.random(n) < 0.7], axis=1)
     noise = rng.normal(size=(n, 5))
     acts = np.column_stack([noise, concepts[:, 0] + 0.1 * rng.normal(size=n),   # unit 5: high on concept 0
-                            -concepts[:, 1] + 0.1 * rng.normal(size=n),        # unit 6: low on concept 1
+                            -concepts[:, 1].astype(float) + 0.1 * rng.normal(size=n),  # unit 6: low on concept 1
                             np.zeros(n)])                                       # unit 7: constant
     s = unit_scores(acts, concepts)
     assert s["iou"][5, 0] == pytest.approx(1.0) and s["iou_sign"][5, 0] == 1

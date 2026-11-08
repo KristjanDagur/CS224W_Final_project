@@ -13,7 +13,7 @@ else
     python() {
         local nv=()
         command -v nvidia-smi >/dev/null 2>&1 && nv=(--nv)
-        apptainer exec "${nv[@]}" "$SIF" "$VENV/bin/python" "$@"
+        apptainer exec ${nv[@]+"${nv[@]}"} "$SIF" "$VENV/bin/python" "$@"
     }
     pytest() { python -m pytest "$@"; }
 fi

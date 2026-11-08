@@ -20,7 +20,9 @@ else
         apptainer build --mksquashfs-args "-processors ${SLURM_CPUS_PER_TASK:-4}" "$SIF" "$SIF_SOURCE"
     fi
     [ -x "$VENV/bin/python" ] || apptainer exec "$SIF" python3 -m venv "$VENV"
-    PY=(apptainer exec "$SIF" "$VENV/bin/python")
+    nv=()
+    command -v nvidia-smi >/dev/null 2>&1 && nv=(--nv)  # GPU passthrough, so the final check sees CUDA
+    PY=(apptainer exec ${nv[@]+"${nv[@]}"} "$SIF" "$VENV/bin/python")
 fi
 "${PY[@]}" -m pip install --upgrade pip
 "${PY[@]}" -m pip install -r requirements.txt
