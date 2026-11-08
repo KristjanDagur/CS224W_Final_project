@@ -74,14 +74,23 @@ class SyntheticTask:
         )
 
     def forward(self, model: nn.Module, batch: HeteroData, device: torch.device, return_hidden: bool = False):
-        """Score the seed nodes of a batch. Returns ``(logits, labels)``, plus hidden states if requested."""
+        """Score the seed nodes of a batch.
+
+        Returns ``(logits, labels)``. With ``return_hidden``, returns ``(logits, labels, hidden, ids)``:
+        ``hidden[l]`` is the (n_seed, hidden) node state after layer ``l`` (``l = 0`` is the
+        embedding) at the seed nodes, and ``ids`` are the seeds' node indices in the split graph.
+        """
         n_seed = batch[NODE].batch_size
         if self.rung.ego:
             batch = add_ego_ids(batch, n_seed)
         batch = batch.to(device)
-        out = model(**model_inputs(batch), target=torch.arange(n_seed, device=device), return_hidden=return_hidden)
+        target = torch.arange(n_seed, device=device)
+        out = model(**model_inputs(batch), target=target, return_hidden=return_hidden)
         y = batch[NODE].y[:n_seed]
-        return (out[0], y, out[1]) if return_hidden else (out, y)
+        if not return_hidden:
+            return out, y
+        logits, hidden = out
+        return logits, y, [h[:n_seed] for h in hidden], batch[NODE].n_id[:n_seed]
 
     def metrics(self, y: np.ndarray, prob: np.ndarray, thresholds: np.ndarray | float = 0.5) -> dict:
         """Per-label and mean minority-class F1 (in %) and PR-AUC. The selection key is ``mean_f1``."""

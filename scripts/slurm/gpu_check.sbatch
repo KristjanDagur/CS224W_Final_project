@@ -1,9 +1,6 @@
 #!/bin/bash
-# Quick sanity check that the venv sees the GPU on a FarmShare gpu node.
+# Quick sanity check that the environment sees the GPU.   scripts/submit.sh gpu scripts/slurm/gpu_check.sbatch
 #SBATCH --job-name=gpu_check
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gpus=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=00:05:00

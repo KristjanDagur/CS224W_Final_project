@@ -1,11 +1,10 @@
 #!/bin/bash
 # Generic job-array runner: array task i runs line i+1 of a task file as `python -m amlinterp.train <line>`.
-# Partition and resources are given on the sbatch command line, e.g. for one L40S:
-#   TASKS=scripts/tasks/synth_final.txt LR_FROM=runs/lr_sweep/selected_lr.json \
-#     sbatch --array=0-11 --partition=gpu --qos=gpu --gpus=1 --cpus-per-task=8 --mem=16G \
-#            --time=02:00:00 scripts/slurm/run_tasks.sbatch
-# If LR_FROM is set, every "@LR" in the line is replaced by the "lr" field of that JSON file,
-# read when the task starts (so the file can be produced by an upstream dependency job).
+# Resources are given on the command line; scripts/submit.sh adds the cluster's GPU flags:
+#   TASKS=scripts/tasks/synth_final.txt LR=0.003 \
+#     scripts/submit.sh gpu --array=0-11 --cpus-per-task=8 --mem=16G --time=04:00:00 scripts/slurm/run_tasks.sbatch
+# Every "@LR" in the line is replaced by $LR, or, if LR_FROM is set, by the "lr" field of that
+# JSON file, read when the task starts (so the file can be produced by an upstream dependency job).
 # Runs resume from runs/<run_id>/last.pt, so resubmitting a killed task continues it.
 #SBATCH --job-name=ladder
 #SBATCH --output=logs/%x-%A_%a.out
@@ -20,7 +19,9 @@ if [ "${REQUIRE_VERTEX:-0}" = 1 ] && [ "$(python -c "import json,sys; print(json
 fi
 if [ -n "${LR_FROM:-}" ]; then
     LR=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['lr'])" "$LR_FROM")
-    LINE=${LINE//@LR/$LR}
+fi
+if [[ $LINE == *@LR* ]]; then
+    LINE=${LINE//@LR/${LR:?the task line uses @LR; set LR or LR_FROM}}
 fi
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 echo "[$(date)] $(hostname) ${CUDA_VISIBLE_DEVICES:+GPU $CUDA_VISIBLE_DEVICES}: $LINE"

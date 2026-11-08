@@ -119,8 +119,8 @@ building analyses on top.
 ## Cluster usage (FarmShare preferred, Sherlock fallback)
 
 - **Never** train on login nodes. Use Slurm.
+- **One code path for both clusters.** All cluster-specific settings live in `scripts/cluster.sh` (FarmShare is the default; Sherlock is detected through `$SHERLOCK`, override with `AMLINTERP_CLUSTER`). Job scripts carry no partition/GPU/node flags. Submit with `scripts/submit.sh gpu|cpu [sbatch options] <script>`, which prepends the cluster's flags and prints the job ID. `source scripts/activate.sh` gives a working `python` on either cluster.
 - FarmShare GPU jobs use `--partition=gpu --qos=gpu --gpus=1`; GPUs are not allocated by default.
-- Sherlock's public `gpu` partition has P100 (16 GB) and P40 (24 GB) cards. Select one with `-C GPU_SKU:...`. Pascal GPUs may need an older CUDA build of PyTorch.
 - FarmShare GPUs (checked 2026-11-07 with `sinfo`/`scontrol show node`/`sacctmgr show qos`):
   - `gpu` partition: 6 nodes (`oat-01`…`oat-06`), each 4× **NVIDIA L40S 48 GB** (Ada, CC 8.9), 64 CPUs, 250 GB RAM. 24 GPUs total.
   - QOS `gpu`: max 4 GPUs and 4 running jobs per user, 32 submitted jobs per user, 2-day wall limit.
@@ -138,6 +138,13 @@ building analyses on top.
     - **Backfill** (`sched/backfill`) still starts small, *short* jobs early in gaps the top job can't use. Short `--time` limits plus resumable training are the way to start sooner.
     - Request what a job really needs (about 8 CPUs and 32 GB for AML). Don't pad requests to jump the queue.
 - Request roughly 1 GPU, 8 CPUs, 32 GB RAM, and a time limit of 16 hours or less. Submit rung × seed as one job array.
+- **Sherlock (fallback; used 2026-11-08 while FarmShare was down).** Read `/etc/agents/AGENTS.md` and its topic files first; they are binding there.
+  - Host OS is CentOS 7 (glibc 2.17): the pinned torch 2.13 wheels (`manylinux_2_28`) cannot install, and there is no PyG module (newest `py-pytorch` is 2.10 on Python 3.14). Python therefore runs in an Apptainer image (`docker://python:3.12-bookworm`, which also provides a modern git for `config.json`) with the same pinned venv. Image and venv: `$GROUP_HOME/$USER/amlinterp/`. Build them inside a job: `scripts/slurm/setup_env.sbatch`.
+  - `data/`, `runs/`, `logs/` are symlinks into `$SCRATCH/CS224W/` (purged after 90 days unmodified: copy results you need to keep elsewhere).
+  - `gpu` partition: L40S, H100, RTX 3090, V100, 2080 Ti, P100, Titan Xp; `cluster.sh` restricts to L40S/H100/3090. QOS `gpu`: 16 GPUs and 128 CPUs per user, 100 submitted jobs, 2-day limit, up to 32 GB per CPU.
+  - `--exclude` is not supported on Sherlock; select hardware with `-C` only. No `--qos`/`--account` needed.
+  - `dev` partition rejects `sbatch`; it is for interactive `srun`/`sh_dev` only (4 CPUs, 16 GB, 2 GPUs as A30 MIG 6 GB slices, 2 h).
+  - Queues on 2026-11-08: about 1,500 GPUs' worth of jobs pending; `--test-only` estimated about 2 days to start a GPU job and about 11 h for a CPU job on `normal`.
 - Keep data and runs on cluster scratch, not in home quota. Copy checkpoints and metrics back for analysis.
 - Make training resumable: checkpoint every epoch, so a job killed at its time limit can continue.
 
@@ -145,14 +152,14 @@ building analyses on top.
 
 Milestone due 2026-11-10:
 
-- [x] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare CPU nodes and an L40S GPU node (driver 595.91, CUDA 13.2); laptop not yet verified
+- [x] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare CPU nodes and an L40S GPU node (driver 595.91, CUDA 13.2); Sherlock via Apptainer (2026-11-08); laptop not yet verified
 - [x] AMLworld preprocessing + cached ports (`data/aml.py`); patterns parser + stats (`data/patterns.py`, `stats.json`)
-- [ ] AML task (`tasks/aml.py`): LinkNeighborLoader [100,100], batch ego IDs, IBM per-split z-norm; then training
+- [x] AML task (`tasks/aml.py`): LinkNeighborLoader [100,100], batch ego IDs, IBM per-split z-norm; smoke-tested on L40S
 - [x] Synthetic circulant generator + labelers (`data/synthetic.py`, tests vs brute force; rates match Table 3)
 - [x] Vectorized port numbering (`data/ports.py`, tested against IBM's loop)
 - [x] GIN ladder model + `train.py` (resumable) + synthetic task; smoke-tested on CPU
-- [ ] Synthetic training R0–R3 × 3 seeds (6 layers; `scripts/slurm/synthetic_cpu.sbatch`); reproduce Table 1 rows
-- [ ] AML training R0–R3 (cluster); compare to Table 2
+- [ ] Synthetic training R0–R3 × 3 seeds (6 layers, lr 3e-3; `scripts/tasks/synth_final.txt`); reproduce Table 1 rows. FarmShare runs were lost to the outage on 2026-11-08; rerunning on Sherlock
+- [ ] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`); compare to Table 2. Rerunning on Sherlock (FarmShare outage)
 - [ ] Activation hooks with `ego_mode`; dissection (IoU + AP) on synthetic; first rung × concept heatmap
 - [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results)
 

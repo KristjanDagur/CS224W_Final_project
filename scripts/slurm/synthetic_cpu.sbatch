@@ -1,10 +1,9 @@
 #!/bin/bash
-# Synthetic ladder sweep on CPU nodes (normal partition; avoids the GPU queue).
+# Synthetic ladder sweep on CPU nodes (avoids the GPU queue).
 # Array index -> (rung, seed): 0-11 = R0..R3 x seeds 1..3.
-# Submit from the repo root:  sbatch scripts/slurm/synthetic_cpu.sbatch
+# Submit from the repo root:  scripts/submit.sh cpu scripts/slurm/synthetic_cpu.sbatch
 # Resubmitting resumes unfinished runs from runs/<run_id>/last.pt.
 #SBATCH --job-name=synth_ladder
-#SBATCH --partition=normal
 #SBATCH --array=0-11
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G

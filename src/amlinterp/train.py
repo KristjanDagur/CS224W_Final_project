@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import random
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -65,6 +66,16 @@ def git_state() -> dict:
     return {"commit": run("rev-parse", "HEAD") or None, "dirty": bool(run("status", "--porcelain"))}
 
 
+def host_info(device: torch.device) -> dict:
+    """Where the run executes: hostname, Slurm job, GPU model. Runs span clusters and GPU types, and resume across them."""
+    return {
+        "hostname": socket.gethostname(),
+        "slurm_job": os.environ.get("SLURM_ARRAY_JOB_ID", os.environ.get("SLURM_JOB_ID")),
+        "slurm_task": os.environ.get("SLURM_ARRAY_TASK_ID"),
+        "gpu": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
+    }
+
+
 def _parse_value(value: str):
     """Parse a CLI override as YAML. Also accepts ``3e-4``, which YAML 1.1 would read as a string."""
     parsed = yaml.safe_load(value)
@@ -93,6 +104,15 @@ def make_task(cfg: dict):
     """Instantiate the task class registered for ``cfg['dataset']``."""
     module, cls = TASKS[cfg["dataset"]].split(":")
     return getattr(__import__(module, fromlist=[cls]), cls)(cfg, RUNGS[cfg["rung"]])
+
+
+def build_model(cfg: dict, task) -> GINLadder:
+    """The ladder model for a run config and its task (input sizes come from the task)."""
+    return GINLadder(
+        node_in=task.node_in, edge_in=task.edge_in, out_dim=task.out_dim, hidden=cfg["hidden"],
+        num_layers=cfg["num_layers"], reverse_mp=cfg["reverse_mp"], readout=task.readout,
+        final_dropout=cfg["final_dropout"],
+    )
 
 
 # --------------------------------------------------------------------------- train / eval
@@ -175,15 +195,11 @@ def run(cfg: dict) -> dict:
     device = torch.device(cfg.get("device") or ("cuda" if torch.cuda.is_available() else "cpu"))
     if "SLURM_CPUS_PER_TASK" in os.environ:
         torch.set_num_threads(int(os.environ["SLURM_CPUS_PER_TASK"]))
-    cfg = {**cfg, "device": str(device), "git": git_state(), "torch": torch.__version__}
+    cfg = {**cfg, "device": str(device), "git": git_state(), "torch": torch.__version__, "host": host_info(device)}
 
     seed_everything(cfg["seed"])
     task = make_task(cfg)
-    model = GINLadder(
-        node_in=task.node_in, edge_in=task.edge_in, out_dim=task.out_dim, hidden=cfg["hidden"],
-        num_layers=cfg["num_layers"], reverse_mp=cfg["reverse_mp"], readout=task.readout,
-        final_dropout=cfg["final_dropout"],
-    ).to(device)
+    model = build_model(cfg, task).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg["lr"], weight_decay=cfg.get("weight_decay", 0.0))
     cfg["num_params"] = sum(p.numel() for p in model.parameters())
     (run_dir / "config.json").write_text(json.dumps(cfg, indent=2))
@@ -210,7 +226,8 @@ def run(cfg: dict) -> dict:
             best = {"mean_f1": val["mean_f1"], "epoch": epoch}
             atomic_save(model.state_dict(), run_dir / "best.pt")
         rec = {"epoch": epoch, "train_loss": round(loss, 5), "val_mean_f1": round(val["mean_f1"], 2),
-               "val_f1": val["f1"], "best_epoch": best["epoch"], "sec": round(time.time() - t0, 1)}
+               "val_f1": val["f1"], "best_epoch": best["epoch"], "sec": round(time.time() - t0, 1),
+               "host": cfg["host"]["hostname"]}
         if train_cov is not None:
             rec.update(train_seed_coverage=train_cov["frac_scored"], val_seed_coverage=val["seed_coverage"]["frac_scored"])
         with open(run_dir / "history.jsonl", "a") as f:

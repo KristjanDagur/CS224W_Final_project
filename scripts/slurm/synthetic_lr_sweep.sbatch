@@ -1,10 +1,9 @@
 #!/bin/bash
 # Learning-rate sweep for the synthetic ladder (tuning seed 0; final runs use seeds 1-3).
 # Array index -> (lr, rung): rung = idx % 4, lr = LRS[idx / 4]. One lr is shared by all rungs.
-# Usage (repo root):  LRS="3e-4 1e-3 3e-3" sbatch --array=0-11 scripts/slurm/synthetic_lr_sweep.sbatch
+# Usage (repo root):  LRS="3e-4 1e-3 3e-3" scripts/submit.sh cpu --array=0-11 scripts/slurm/synthetic_lr_sweep.sbatch
 # Then:               python scripts/fit_lr.py
 #SBATCH --job-name=synth_lr
-#SBATCH --partition=normal
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00

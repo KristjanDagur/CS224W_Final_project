@@ -33,7 +33,7 @@ Optional extra rungs: R3 + edge updates (`--emlps`), and R3 with 4 layers (to te
 
 **Data.**
 - **Synthetic graphs:** random circulant directed multigraphs following Egressy et al. Appendix D. Every node has exact labels for degree-in/out, fan-in/out, directed cycles of length 2–6, scatter-gather and biclique.
-- **AMLworld HI-Small** (Altman et al., NeurIPS 2023 D&B): about 515K accounts and 5M transactions. The task is binary edge classification with a chronological 60/20/20 split. `HI-Small_Patterns.txt` gives ground-truth pattern membership for about 62% of laundering transactions.
+- **AMLworld HI-Small** (Altman et al., NeurIPS 2023 D&B): about 515K accounts and 5M transactions. The task is binary edge classification with IBM's chronological day split (target 60/20/20; actual 64/19/17%). `HI-Small_Patterns.txt` gives ground-truth pattern membership for about 62% of laundering transactions.
 - **Optional:** the Ethereum phishing network (node classification).
 
 **Analyses, run on each rung:**
@@ -51,8 +51,8 @@ Optional extra rungs: R3 + edge updates (`--emlps`), and R3 with 4 layers (to te
 
 ## Repository layout
 
-> **Status:** the repo currently holds only the proposal and these docs. The layout below is the *planned*
-> structure; keep it in sync as code lands.
+> **Status:** data, model and training code are in place; `analysis/` is still planned. Keep this layout
+> in sync as code lands.
 
 ```
 proposal.pdf
@@ -60,13 +60,14 @@ README.md               this file
 AGENTS.md               instructions for coding agents (read before changing anything)
 requirements.txt        pinned pip environment (scripts/setup_env.sh builds .venv/)
 src/amlinterp/
-  data/aml.py           AMLworld loading, formatting, chronological split            (todo)
-  data/patterns.py      parser for HI-Small_Patterns.txt -> per-edge (attempt_id, pattern_type)  (todo)
+  data/aml.py           AMLworld loading, formatting, chronological split            (done)
+  data/patterns.py      parser for HI-Small_Patterns.txt -> per-edge (attempt_id, pattern_type)  (done)
   data/synthetic.py     random circulant generator + exact pattern labelers          (done)
   data/ports.py         vectorized port numbering (IBM semantics)                    (done)
   data/transforms.py    rung -> input graph (ports, reverse edges), ego IDs per batch (done)
   models/gin.py         GIN ladder + RUNGS (adapted from IBM Multi-GNN, Apache-2.0)  (done)
   tasks/synthetic.py    synthetic node task: loaders, batch step, metrics            (done)
+  tasks/aml.py          AMLworld edge task, IBM protocol (adapted, Apache-2.0)       (done)
   metrics.py            minority-class F1, PR-AUC, validation threshold tuning       (done)
   train.py              training/eval entry point (one config = one run, resumable)  (done)
   analysis/hooks.py     activation extraction (records ego mode)
@@ -75,7 +76,10 @@ src/amlinterp/
   analysis/ablation.py
   analysis/probes.py
 configs/                one YAML per dataset (rung and seed are CLI args)
-scripts/slurm/          cluster job scripts (job arrays over rung x seed)
+scripts/cluster.sh      per-cluster settings (FarmShare default, Sherlock fallback)
+scripts/submit.sh       sbatch + the cluster's partition/GPU flags
+scripts/slurm/          cluster-agnostic job scripts (job arrays over rung x seed)
+scripts/tasks/          task files: one train.py command line per array index
 tests/                  pytest: labelers vs brute force, ports vs IBM loop, subgraph == full-graph forward
 notebooks/              exploration + the final Colab
 docs/experiment_log.md  append-only log of every run and result
@@ -88,11 +92,26 @@ runs/                   NOT committed (checkpoints, logs, activations)
 Python 3.12 virtualenv in `.venv/` (not committed). Versions are pinned in `requirements.txt`: torch 2.13.0 (CUDA 12.6), pyg_lib 0.9.0 and torch-geometric 2.8.1. PyG no longer needs `torch-scatter` or `torch-sparse`.
 
 ```bash
-bash scripts/setup_env.sh        # once; uses the system python3 (3.12 on FarmShare)
+bash scripts/setup_env.sh        # once; FarmShare: system python3.12. Sherlock: run inside a job (see below)
 source scripts/activate.sh       # every session (also used inside Slurm jobs)
 ```
 
 Works on a laptop with any Python ≥3.10. Do not `module load python` on FarmShare: some compute nodes lack those modules, and the venv does not need them.
+
+**Clusters.** FarmShare is the primary cluster; Sherlock is the fallback. `scripts/cluster.sh` detects which one
+you are on and holds everything that differs (environment, storage, Slurm flags). Submit through
+`scripts/submit.sh`, which adds the right partition/GPU flags:
+
+```bash
+scripts/submit.sh cpu scripts/slurm/setup_env.sbatch                       # build env + run tests
+RAW=data/raw scripts/submit.sh cpu scripts/slurm/prepare_data.sbatch       # synthetic + AMLworld caches
+TASKS=scripts/tasks/aml_final.txt scripts/submit.sh gpu --array=0-11 --cpus-per-task=8 --mem=32G \
+    --time=06:00:00 scripts/slurm/run_tasks.sbatch                         # AML ladder, R0-R3 x 3 seeds
+```
+
+On Sherlock (CentOS 7, glibc 2.17) the pinned torch wheels cannot run on the host, so `setup_env.sh` builds the
+same pinned venv inside an Apptainer image (`python:3.12-bookworm`) in `$GROUP_HOME/$USER/amlinterp/`, and
+`activate.sh` makes `python` run through it. `data/`, `runs/` and `logs/` are symlinks into `$SCRATCH/CS224W/`.
 
 **AMLworld data.** Download `HI-Small_Trans.csv` and `HI-Small_Patterns.txt` from Kaggle
 (`ealtman2019/ibm-transactions-for-anti-money-laundering-aml`) into `data/raw/`. Then preprocess once and cache

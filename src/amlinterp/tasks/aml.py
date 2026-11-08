@@ -119,7 +119,13 @@ class AMLTask:
         return F.cross_entropy(logits, y, weight=self._w_ce.to(logits.device))
 
     def forward(self, model: nn.Module, batch: HeteroData, device: torch.device, return_hidden: bool = False):
-        """Score the seed edges that the sampler included in the batch. Returns ``(logits, labels)``, plus hidden states if asked."""
+        """Score the seed edges that the sampler included in the batch.
+
+        Returns ``(logits, labels)``. With ``return_hidden``, returns ``(logits, labels, hidden, ids)``:
+        ``hidden[l]`` is ``[h_l(u) || h_l(v)]``, shape (n_scored, 2 * hidden), for each scored edge
+        ``u -> v`` (``l = 0`` is the embedding), and ``ids`` are the scored edges' global indices
+        (the split graphs are time prefixes, so split-graph and global edge indices agree).
+        """
         st = batch[FWD]
         mask = torch.isin(st.e_id, st.seed_pos)  # IBM: seeds absent from the subgraph are dropped
         self.last_batch_info = {"seeds": int(st.seed_pos.numel()), "scored": int(mask.sum())}
@@ -129,7 +135,11 @@ class AMLTask:
         target = mask.nonzero().squeeze(1).to(device)
         out = model(**model_inputs(batch), target=target, return_hidden=return_hidden)
         y = batch[FWD].y[target]
-        return (out[0], y, out[1]) if return_hidden else (out, y)
+        if not return_hidden:
+            return out, y
+        logits, hidden = out
+        src, dst = batch[FWD].edge_index[:, target]
+        return logits, y, [torch.cat([h[src], h[dst]], dim=1) for h in hidden], batch[FWD].e_id[target]
 
     def probs(self, logits: Tensor) -> Tensor:
         """P(laundering) as an (N, 1) column. Thresholding at 0.5 equals IBM's argmax."""
