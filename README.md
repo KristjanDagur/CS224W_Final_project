@@ -60,18 +60,23 @@ README.md               this file
 AGENTS.md               instructions for coding agents (read before changing anything)
 requirements.txt        pinned pip environment (scripts/setup_env.sh builds .venv/)
 src/amlinterp/
-  data/aml.py           AMLworld loading, formatting, port numbers, chronological split
-  data/patterns.py      parser for HI-Small_Patterns.txt -> per-edge (attempt_id, pattern_type)
-  data/synthetic.py     random circulant generator + exact pattern labelers
-  models/gin.py         GIN ladder (adapted from IBM Multi-GNN, Apache-2.0)
-  train.py              training/eval entry point (one config = one run)
+  data/aml.py           AMLworld loading, formatting, chronological split            (todo)
+  data/patterns.py      parser for HI-Small_Patterns.txt -> per-edge (attempt_id, pattern_type)  (todo)
+  data/synthetic.py     random circulant generator + exact pattern labelers          (done)
+  data/ports.py         vectorized port numbering (IBM semantics)                    (done)
+  data/transforms.py    rung -> input graph (ports, reverse edges), ego IDs per batch (done)
+  models/gin.py         GIN ladder + RUNGS (adapted from IBM Multi-GNN, Apache-2.0)  (done)
+  tasks/synthetic.py    synthetic node task: loaders, batch step, metrics            (done)
+  metrics.py            minority-class F1, PR-AUC, validation threshold tuning       (done)
+  train.py              training/eval entry point (one config = one run, resumable)  (done)
   analysis/hooks.py     activation extraction (records ego mode)
   analysis/dissection.py
   analysis/sae.py
   analysis/ablation.py
   analysis/probes.py
-configs/                one YAML per rung/dataset
+configs/                one YAML per dataset (rung and seed are CLI args)
 scripts/slurm/          cluster job scripts (job arrays over rung x seed)
+tests/                  pytest: labelers vs brute force, ports vs IBM loop, subgraph == full-graph forward
 notebooks/              exploration + the final Colab
 docs/experiment_log.md  append-only log of every run and result
 data/                   NOT committed (raw/ and processed/)
@@ -83,11 +88,11 @@ runs/                   NOT committed (checkpoints, logs, activations)
 Python 3.12 virtualenv in `.venv/` (not committed). Versions are pinned in `requirements.txt`: torch 2.13.0 (CUDA 12.6), pyg_lib 0.9.0 and torch-geometric 2.8.1. PyG no longer needs `torch-scatter` or `torch-sparse`.
 
 ```bash
-bash scripts/setup_env.sh        # once; on FarmShare it loads the python/3.12.3 module
+bash scripts/setup_env.sh        # once; uses the system python3 (3.12 on FarmShare)
 source scripts/activate.sh       # every session (also used inside Slurm jobs)
 ```
 
-On a laptop without `module`, use any Python ≥3.10 and run the same script.
+Works on a laptop with any Python ≥3.10. Do not `module load python` on FarmShare: some compute nodes lack those modules, and the venv does not need them.
 
 **AMLworld data.** Download `HI-Small_Trans.csv` and `HI-Small_Patterns.txt` from Kaggle
 (`ealtman2019/ibm-transactions-for-anti-money-laundering-aml`) into `data/raw/`. Then preprocess once and cache

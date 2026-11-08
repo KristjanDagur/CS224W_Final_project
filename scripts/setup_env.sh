@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Create the project virtualenv in .venv/ (FarmShare: uses the python/3.12.3 module).
+# Create the project virtualenv in .venv/ from the system python3 (>= 3.10).
 # Usage: bash scripts/setup_env.sh        then: source scripts/activate.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-if command -v module >/dev/null 2>&1; then module load python/3.12.3; fi
+# Uses the system python3 (3.12 on FarmShare Ubuntu 24.04); no module needed.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip

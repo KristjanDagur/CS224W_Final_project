@@ -119,6 +119,10 @@ building analyses on top.
   - Heavily contended: on 2026-11-07, 22 of 24 GPUs were allocated and about 95 jobs were waiting on priority. Submit early; short `--time` requests backfill faster.
   - Any current PyTorch CUDA 12.x wheel supports CC 8.9.
 - Scratch: `/scratch/users/$USER` (shared filesystem, 81% full on 2026-11-07). Home is `/home/users/$USER` (NFS).
+- CPU jobs: the `normal` partition (barley/wheat nodes, 64+ CPUs each) has no GPU queue. Use it for synthetic runs.
+- Gotchas found 2026-11-07:
+  - Do **not** `module load python/...` in job scripts. It is missing on some compute nodes (barley-03), and the venv uses the system `/usr/bin/python3.12` anyway.
+  - `barley-04` could not see `/home/users`, so jobs there die without writing a log. Submit with `--exclude=barley-04` until it is fixed.
 - Request roughly 1 GPU, 8 CPUs, 32 GB RAM, and a time limit of 16 hours or less. Submit rung × seed as one job array.
 - Keep data and runs on cluster scratch, not in home quota. Copy checkpoints and metrics back for analysis.
 - Make training resumable: checkpoint every epoch, so a job killed at its time limit can continue.
@@ -131,7 +135,8 @@ Milestone due 2026-11-10:
 - [ ] AMLworld download + preprocessing + cached ports; patterns parser + stats (counts per type per split, cycle-length distribution)
 - [x] Synthetic circulant generator + labelers (`data/synthetic.py`, tests vs brute force; rates match Table 3)
 - [x] Vectorized port numbering (`data/ports.py`, tested against IBM's loop)
-- [ ] Synthetic training R0–R3 × 3 seeds (6 layers); reproduce Table 1 rows
+- [x] GIN ladder model + `train.py` (resumable) + synthetic task; smoke-tested on CPU
+- [ ] Synthetic training R0–R3 × 3 seeds (6 layers; `scripts/slurm/synthetic_cpu.sbatch`); reproduce Table 1 rows
 - [ ] AML training R0–R3 (cluster); compare to Table 2
 - [ ] Activation hooks with `ego_mode`; dissection (IoU + AP) on synthetic; first rung × concept heatmap
 - [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results)

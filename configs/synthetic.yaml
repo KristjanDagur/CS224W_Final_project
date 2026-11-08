@@ -1,0 +1,14 @@
+# Synthetic pattern detection (Egressy et al. Table 1). Shared by every rung: do not tune per rung.
+dataset: synth
+data_dir: data/processed/synthetic
+num_layers: 6          # Egressy F.3: 6 layers so 6-cycles are detectable
+hidden: 64             # same as the AML runs
+final_dropout: 0.1
+lr: 0.001
+weight_decay: 0.0
+epochs: 100
+batch_size: 256        # seed nodes per training batch
+eval_batch_size: 512
+ego_mode: exact        # exact: one disjoint subgraph per target node (applies to all rungs' sampling)
+num_workers: 0
+runs_dir: runs
