@@ -1,0 +1,12 @@
+--config configs/aml_hi_small.yaml --rung R0 --seed 1
+--config configs/aml_hi_small.yaml --rung R1 --seed 1
+--config configs/aml_hi_small.yaml --rung R2 --seed 1
+--config configs/aml_hi_small.yaml --rung R3 --seed 1
+--config configs/aml_hi_small.yaml --rung R0 --seed 2
+--config configs/aml_hi_small.yaml --rung R1 --seed 2
+--config configs/aml_hi_small.yaml --rung R2 --seed 2
+--config configs/aml_hi_small.yaml --rung R3 --seed 2
+--config configs/aml_hi_small.yaml --rung R0 --seed 3
+--config configs/aml_hi_small.yaml --rung R1 --seed 3
+--config configs/aml_hi_small.yaml --rung R2 --seed 3
+--config configs/aml_hi_small.yaml --rung R3 --seed 3

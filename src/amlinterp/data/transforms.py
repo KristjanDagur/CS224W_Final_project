@@ -45,6 +45,7 @@ def build_ladder_graph(
     rung: Rung,
     num_nodes: int,
     ports: torch.Tensor | None = None,
+    edge_transform=None,
 ) -> HeteroData:
     """Build the ``HeteroData`` graph that a rung trains on (without ego IDs).
 
@@ -57,6 +58,9 @@ def build_ladder_graph(
         num_nodes: N.
         ports: optional precomputed (E, 2) ``[in_port, out_port]``. Pass this for large
             graphs whose ports are cached; otherwise they are computed here.
+        edge_transform: optional function applied to the full edge-feature matrix, ports
+            included, before the reverse edges are built. AML uses it for IBM's z-norm,
+            which also normalizes the port columns.
 
     Returns:
         ``HeteroData`` with ``data["node"].x``, ``data[FWD].edge_index/edge_attr``, and,
@@ -66,6 +70,8 @@ def build_ladder_graph(
         if ports is None:
             ports = compute_ports(edge_index, edge_time, num_nodes)
         edge_attr = torch.cat([edge_attr, ports.to(edge_attr.dtype)], dim=1)
+    if edge_transform is not None:
+        edge_attr = edge_transform(edge_attr)
     data = HeteroData()
     data[NODE].x = x
     data[NODE].num_nodes = num_nodes
@@ -91,6 +97,21 @@ def add_ego_ids(batch: HeteroData, num_seeds: int) -> HeteroData:
     x = batch[NODE].x
     ego = torch.zeros(x.shape[0], 1, dtype=x.dtype, device=x.device)
     ego[:num_seeds] = 1
+    batch[NODE].x = torch.cat([x, ego], dim=1)
+    return batch
+
+
+def add_ego_ids_edges(batch: HeteroData) -> HeteroData:
+    """Append the ego bit for edge tasks: 1 on both endpoints of every seed edge in the batch.
+
+    This is IBM's ``AddEgoIds``: it marks the nodes of
+    ``batch[FWD].edge_label_index``, which is ``batch`` mode for edge tasks. With a
+    disjoint loader, each subgraph holds a single seed, so the same code gives ``exact``
+    mode.
+    """
+    x = batch[NODE].x
+    ego = torch.zeros(x.shape[0], 1, dtype=x.dtype, device=x.device)
+    ego[torch.unique(batch[FWD].edge_label_index.reshape(-1))] = 1
     batch[NODE].x = torch.cat([x, ego], dim=1)
     return batch
 

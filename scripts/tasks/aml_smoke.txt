@@ -1,0 +1,1 @@
+--config configs/aml_hi_small.yaml --rung R3 --seed 1 --set epochs=1 tag=smoke runs_dir=runs/smoke

@@ -9,7 +9,10 @@ What matches IBM Multi-GNN:
   order of first appearance in raw row order, ``from`` before ``to``.
 * **Categorical codes.** Currencies share one vocabulary, coded in first-appearance order
   (receiving, then payment, row by row). Payment formats are coded the same way.
-* **Edge order.** Edges stay in raw CSV row order (IBM's ``EdgeID``).
+* **Edge order.** Edges are stable-sorted by timestamp, as in the last step of IBM's
+  ``format_kaggle_files.py`` (``sort(3)``). ``graph["raw_row"]`` maps each edge back to its
+  raw CSV row. Because of the sort, each split's indices form one contiguous range, so
+  global and positional indices agree. IBM's loaders rely on that.
 * **Timestamps.** Seconds since the earliest transaction.
 * **Split.** Days are ``[k*86400, (k+1)*86400)`` from the earliest timestamp. IBM picks the
   two day boundaries ``(i, j)`` whose train/val/test transaction shares minimize the
@@ -142,12 +145,19 @@ def preprocess(raw_dir: Path, name: str, out_dir: Path, nrows: int | None = None
                                                    trans["To Bank"] + trans["To Account"])
     (recv_cur, pay_cur), currencies = _first_appearance_codes(trans["Receiving Currency"], trans["Payment Currency"])
     (fmt,), formats = _first_appearance_codes(trans["Payment Format"])
+    # IBM codes IDs in raw order, then stable-sorts all edges by timestamp (format_kaggle_files.py).
+    raw_row = np.argsort(edge_time, kind="stable")
+    trans = trans.iloc[raw_row].reset_index(drop=True)
+    edge_time, src, dst = edge_time[raw_row], src[raw_row], dst[raw_row]
+    recv_cur, pay_cur, fmt = recv_cur[raw_row], pay_cur[raw_row], fmt[raw_row]
     y = trans["Is Laundering"].astype(np.int64).to_numpy()
     num_nodes = len(accounts)
     edge_index = torch.from_numpy(np.stack([src, dst]))
     t_edge = torch.from_numpy(edge_time)
 
     split, split_info = chronological_split(edge_time)
+    if not np.array_equal(np.concatenate([split[k] for k in SPLITS]), np.arange(len(edge_time))):
+        raise AssertionError("after the time sort, train/val/test must be consecutive index ranges")
     ports = compute_ports(edge_index, t_edge.double(), num_nodes).to(torch.int32)
     # Splits are time prefixes, so ports in the train and train+val graphs must equal the full graph's.
     for name_, idx in (("train", split["train"]), ("train+val", np.concatenate([split["train"], split["val"]]))):
@@ -165,6 +175,7 @@ def preprocess(raw_dir: Path, name: str, out_dir: Path, nrows: int | None = None
         "payment_currency": torch.from_numpy(pay_cur),
         "payment_format": torch.from_numpy(fmt),
         "y": torch.from_numpy(y),
+        "raw_row": torch.from_numpy(raw_row),  # edge e is row raw_row[e] of the raw CSV (0-based, header excluded)
         "ports": ports,
         "split": {k: torch.from_numpy(v) for k, v in split.items()},
         "num_nodes": num_nodes,

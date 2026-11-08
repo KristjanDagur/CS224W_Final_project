@@ -1,0 +1,17 @@
+# AMLworld HI-Small (Egressy et al. Table 2). IBM Multi-GNN `model_settings.json` ("gin") + CLI defaults.
+# Shared by every rung. Do not tune per rung.
+dataset: amlhis
+data_dir: data/processed/aml_hi_small
+num_layers: 2                         # benchmark depth: cycles of length <= 3 through the target edge
+hidden: 64                            # Egressy paper (IBM json: 66.003); chosen 2026-11-07, see experiment log
+final_dropout: 0.10527690625126304
+lr: 0.006213266113989207
+weight_decay: 0.0
+w_ce: [1.0000182882773443, 6.275014431494497]
+epochs: 100
+batch_size: 8192
+eval_batch_size: 8192
+num_neighbors: [100, 100]
+ego_mode: batch                       # IBM AddEgoIds: endpoints of all seed edges in the batch
+num_workers: 4
+runs_dir: runs

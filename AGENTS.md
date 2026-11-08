@@ -70,6 +70,9 @@ The four rungs (R0–R3) must differ **only** in the adaptation being added:
    - Reverse MP uses `to_hetero(..., aggr='mean')` over the `to` and `rev_to` edge types.
    - The decoder is `MLP(3h → 50 → 25 → 2)`.
    - `model_settings.json` hidden size is about 66; the paper reports 64. Pick one, use it for every rung, and log it.
+   - **Known IBM bugs that we reproduce on purpose** (user decision, 2026-11-07: follow IBM so Table 2 is comparable; don't "fix" these without asking):
+     - *Per-split normalization.* `z_norm` is applied separately to each split graph's edge features (train, train+val, all), each with its own mean/std. Test features therefore use statistics that include test edges, and the same edge gets different feature values in different splits. The clean alternative is train-only statistics.
+     - *Dropped seed edges.* IBM finds the seed edges in a sampled batch by matching an `EdgeID` column (`add_arange_ids`, then `mask = isin(batch IDs, seed IDs)`). A seed edge that the neighbor sampler did not include is silently dropped from that batch's loss and evaluation. It is only re-added for the Small_J/Q datasets, not HI-Small. Evaluation therefore covers a subset of val/test that is biased against hub accounts. Log how many seeds are dropped per split, so the effect can be reported.
 
 8. **Ablation protocol.** Mean-ablate using means from the training split. Fix the decision threshold on validation *before* ablating. Always compare against random-unit ablations.
 
