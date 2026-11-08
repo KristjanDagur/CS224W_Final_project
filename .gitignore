@@ -1,6 +1,6 @@
 # Data and run artifacts (never commit; see AGENTS.md)
-data/
-runs/
+/data/
+/runs/
 *.csv
 *.parquet
 *.pt
@@ -17,7 +17,7 @@ LI-*_Trans.csv
 
 # Slurm output
 slurm-*.out
-logs/
+/logs/
 
 # Python
 __pycache__/

@@ -10,9 +10,14 @@ shared by every rung, so no rung is favored), and fits ``F1 = a x^2 + b x + c`` 
 * Otherwise the proposal is the best tested lr, and the script suggests extending the range
   toward it instead of extrapolating.
 
+After the proposal has been run on all rungs (seed 0), ``--select`` writes
+``selected_lr.json`` with the lr that has the best observed mean over rungs among all lrs tested.
+That covers both "the vertex did not beat the best tested point" and "it did".
+
 Validation only; test metrics are never read. Usage::
 
     python scripts/fit_lr.py [--sweep-dir runs/lr_sweep] [--out runs/lr_sweep/lr_fit.png]
+    python scripts/fit_lr.py --select
 """
 
 from __future__ import annotations
@@ -54,7 +59,7 @@ def propose(lrs: np.ndarray, score: np.ndarray) -> dict:
            "best_tested_f1": float(score[best_i])}
     if a < 0 and x.min() < -b / (2 * a) < x.max():
         xv = -b / (2 * a)
-        res.update(kind="vertex", lr=float(10**xv), predicted_f1=float(np.polyval([a, b, c], xv)))
+        res.update(kind="vertex", lr=float(f"{10**xv:.2g}"), predicted_f1=float(np.polyval([a, b, c], xv)))
     else:
         side = "lower" if best_i == 0 else "higher" if best_i == len(lrs) - 1 else None
         res.update(kind="best_tested", lr=float(lrs[best_i]), predicted_f1=float(score[best_i]),
@@ -100,6 +105,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--sweep-dir", type=Path, default=Path("runs/lr_sweep"))
     p.add_argument("--out", type=Path, default=None)
+    p.add_argument("--select", action="store_true", help="write selected_lr.json (best observed mean) instead of fitting")
     args = p.parse_args()
     sweep = load_sweep(args.sweep_dir)
     complete = {lr: s for lr, s in sweep.items() if len(s) == len(RUNG_STYLE)}
@@ -111,6 +117,14 @@ def main() -> None:
         raise SystemExit(f"need >= 3 lrs with all four rungs finished, have {len(complete)}")
     lrs = np.array(list(complete))
     score = np.array([np.mean(list(s.values())) for s in complete.values()])
+    if args.select:
+        i = int(score.argmax())
+        sel = {"lr": float(lrs[i]), "mean_val_f1": float(score[i]),
+               "rule": "best observed mean val F1 over R0-R3 (seed 0) among all tested lrs",
+               "tested": {f"{lr:g}": round(float(s), 2) for lr, s in zip(lrs, score)}}
+        (args.sweep_dir / "selected_lr.json").write_text(json.dumps(sel, indent=2))
+        print(json.dumps(sel, indent=2))
+        return
     res = propose(lrs, score)
     print(json.dumps(res, indent=2))
     out = args.out or args.sweep_dir / "lr_fit.png"

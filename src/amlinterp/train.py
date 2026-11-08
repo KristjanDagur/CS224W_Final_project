@@ -48,6 +48,13 @@ def seed_everything(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+def atomic_save(obj, path: Path) -> None:
+    """``torch.save`` to a temporary file, then rename it, so a job killed mid-write never leaves a corrupt checkpoint."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    torch.save(obj, tmp)
+    os.replace(tmp, path)
+
+
 def git_state() -> dict:
     """Current commit hash, and whether the working tree has uncommitted (or untracked, non-ignored) changes."""
     def run(*args: str) -> str:
@@ -143,7 +150,7 @@ def run(cfg: dict) -> dict:
     start_epoch, best = 0, {"mean_f1": -1.0, "epoch": -1}
     last = run_dir / "last.pt"
     if last.exists():
-        ck = torch.load(last, weights_only=False)
+        ck = torch.load(last, map_location="cpu", weights_only=False)  # device-agnostic resume
         model.load_state_dict(ck["model"])
         optimizer.load_state_dict(ck["optimizer"])
         start_epoch, best = ck["epoch"] + 1, ck["best"]
@@ -160,17 +167,17 @@ def run(cfg: dict) -> dict:
         val = task.metrics(*predict(model, task, val_loader, device))
         if val["mean_f1"] > best["mean_f1"]:
             best = {"mean_f1": val["mean_f1"], "epoch": epoch}
-            torch.save(model.state_dict(), run_dir / "best.pt")
+            atomic_save(model.state_dict(), run_dir / "best.pt")
         rec = {"epoch": epoch, "train_loss": round(loss, 5), "val_mean_f1": round(val["mean_f1"], 2),
                "val_f1": val["f1"], "best_epoch": best["epoch"], "sec": round(time.time() - t0, 1)}
         with open(run_dir / "history.jsonl", "a") as f:
             f.write(json.dumps(rec) + "\n")
         print(f"epoch {epoch:3d}  loss {loss:.4f}  val mean F1 {val['mean_f1']:6.2f}  best {best['mean_f1']:6.2f}@{best['epoch']}  {rec['sec']}s", flush=True)
-        torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(), "epoch": epoch, "best": best,
-                    "rng": {"torch": torch.get_rng_state(), "numpy": np.random.get_state(), "python": random.getstate()}},
-                   last)
+        atomic_save({"model": model.state_dict(), "optimizer": optimizer.state_dict(), "epoch": epoch, "best": best,
+                     "rng": {"torch": torch.get_rng_state(), "numpy": np.random.get_state(), "python": random.getstate()}},
+                    last)
 
-    model.load_state_dict(torch.load(run_dir / "best.pt", weights_only=True))
+    model.load_state_dict(torch.load(run_dir / "best.pt", map_location=device, weights_only=True))
     y_val, p_val = predict(model, task, val_loader, device)
     y_test, p_test = predict(model, task, task.loader("test", shuffle=False), device)
     thr = tune_thresholds(y_val, p_val, task.minority)

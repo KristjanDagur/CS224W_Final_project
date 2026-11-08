@@ -51,6 +51,12 @@ The four rungs (R0–R3) must differ **only** in the adaptation being added:
    - The chronological split builds three nested graphs: train ⊂ train+val ⊂ all. Evaluation uses only the indices belonging to each split.
    - The patterns file covers about 62% of laundering transactions (3,209 of 5,177, in 370 attempts). The remainder is "none", and models have near-zero recall on it.
    - Pattern types: FAN-IN, FAN-OUT, GATHER-SCATTER, SCATTER-GATHER, CYCLE, BIPARTITE, STACK, RANDOM. Verify the exact header format by reading the file; don't assume it.
+   - Verified 2026-11-07 (`data/processed/aml_hi_small/stats.json`):
+     - IBM's day split is 64/19/17%, not 60/20/20 (days 0–5 / 6–7 / 8–17).
+     - The illicit ratio rises across splits: 0.078% → 0.107% → 0.186%. Thresholds tuned on val will see a shifted base rate on test.
+     - 147 of the 370 attempts span a split boundary. Attempt-level statistics must count each attempt's transactions per split.
+     - Cycles have 2–12 hops. With 2 layers only 2–3 hop cycles are reachable, and test has just 6 such attempts (3 + 3), so AML cycle claims will have wide CIs.
+     - 11.6% of edges are self-loops and 80% are parallel edges. The max out-port is 14,229, so raw ports are heavy-tailed (IBM z-normalizes them).
 
 6. **Concept masks are confounded with the label.** Every pattern member is a laundering edge, so a generic "laundering" unit scores some IoU with every pattern. Always:
    - include structural concepts computed for **all** edges/nodes regardless of label;
@@ -120,9 +126,14 @@ building analyses on top.
   - Any current PyTorch CUDA 12.x wheel supports CC 8.9.
 - Scratch: `/scratch/users/$USER` (shared filesystem, 81% full on 2026-11-07). Home is `/home/users/$USER` (NFS).
 - CPU jobs: the `normal` partition (barley/wheat nodes, 64+ CPUs each) has no GPU queue. Use it for synthetic runs.
+  - Those nodes are Xeon Gold 6148 (2017, hyperthreaded: `--cpus-per-task=8` gives 4 physical cores). They are shared with other users' heavy jobs, so the same run's epoch time varies up to 4× by node (40 s vs 209 s on 2026-11-07). Budget time limits for the slow case and rely on resume.
 - Gotchas found 2026-11-07:
   - Do **not** `module load python/...` in job scripts. It is missing on some compute nodes (barley-03), and the venv uses the system `/usr/bin/python3.12` anyway.
   - `barley-04` could not see `/home/users`, so jobs there die without writing a log. Submit with `--exclude=barley-04` until it is fixed.
+  - Priority vs backfill (checked with `sprio`):
+    - **Priority** favors large requests (`PriorityFavorSmall=no`, `PriorityWeightTRES=cpu=10000,mem=30000,GRES/gpu=50000`). The memory term, about 30,000 × requested MB, dominates; age and fairshare are small next to it. A job asking for 8 GB therefore sits at the bottom, while whole-node 256 GB requests sit at the top.
+    - **Backfill** (`sched/backfill`) still starts small, *short* jobs early in gaps the top job can't use. Short `--time` limits plus resumable training are the way to start sooner.
+    - Request what a job really needs (about 8 CPUs and 32 GB for AML). Don't pad requests to jump the queue.
 - Request roughly 1 GPU, 8 CPUs, 32 GB RAM, and a time limit of 16 hours or less. Submit rung × seed as one job array.
 - Keep data and runs on cluster scratch, not in home quota. Copy checkpoints and metrics back for analysis.
 - Make training resumable: checkpoint every epoch, so a job killed at its time limit can continue.
@@ -131,8 +142,9 @@ building analyses on top.
 
 Milestone due 2026-11-10:
 
-- [ ] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare login node (CPU); GPU check pending; laptop not yet verified
-- [ ] AMLworld download + preprocessing + cached ports; patterns parser + stats (counts per type per split, cycle-length distribution)
+- [x] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare CPU nodes and an L40S GPU node (driver 595.91, CUDA 13.2); laptop not yet verified
+- [x] AMLworld preprocessing + cached ports (`data/aml.py`); patterns parser + stats (`data/patterns.py`, `stats.json`)
+- [ ] AML task (`tasks/aml.py`): LinkNeighborLoader [100,100], batch ego IDs, IBM per-split z-norm; then training
 - [x] Synthetic circulant generator + labelers (`data/synthetic.py`, tests vs brute force; rates match Table 3)
 - [x] Vectorized port numbering (`data/ports.py`, tested against IBM's loop)
 - [x] GIN ladder model + `train.py` (resumable) + synthetic task; smoke-tested on CPU

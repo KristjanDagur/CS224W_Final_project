@@ -1,0 +1,4 @@
+--config configs/synthetic.yaml --rung R0 --seed 0 --set lr=@LR tag=lr@LR runs_dir=runs/lr_sweep num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 0 --set lr=@LR tag=lr@LR runs_dir=runs/lr_sweep num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 0 --set lr=@LR tag=lr@LR runs_dir=runs/lr_sweep num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 0 --set lr=@LR tag=lr@LR runs_dir=runs/lr_sweep num_workers=4
