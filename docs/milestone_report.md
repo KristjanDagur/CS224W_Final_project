@@ -144,6 +144,13 @@ the representation is [h_u ‖ h_v] plus the decoder layers.
   threshold-free, and chance is p_c. We report it chance-corrected, (AP − p_c)/(1 − p_c), so 0 means a
   random unit and 1 a perfect detector.
 
+- **AUROC**: the probability that a random concept item activates the unit more than a random
+  non-concept item. Ties count one half, since tied items are ones the unit cannot tell apart; in a
+  GNN these are often structurally identical nodes. Chance is 0.5 for every concept, so AUROC is the
+  headline metric on synthetic data. AP is the headline for the rare AML concepts, where AUROC is
+  dominated by easy negatives. AP is the same estimator as the models' PR-AUC, so a unit can be
+  compared directly with the full model's output.
+
 Hidden states can be negative, so each unit is scored in both directions. Concept *coverage* is the best
 score over units, overall and per layer.
 
@@ -151,6 +158,10 @@ The best of hundreds of units beats single-unit chance easily, so we test it aga
 null**: concept labels are shuffled across items 20 times and the max over all units recomputed. A
 **bootstrap** (100 resamples, re-selecting the best unit each time) gives CIs. On AML, resampling is at
 the level of laundering attempts.
+
+For the precision-recall curves, each concept's unit is *selected on the validation graph and
+evaluated on the test graph*. Picking the best of hundreds of units on the same data it is scored on
+would inflate the curves.
 
 Coverage is reported over the GNN layers h1..h6. The decoder layers sit directly before the output, so
 any accurate model "covers" its own targets there.
@@ -193,8 +204,11 @@ Deviations, logged as found:
 
 ### 5.2 Dissection: which concepts get a dedicated unit, and where
 
-TODO (job running): Figure 1, the rung × concept coverage heatmap (`runs/analysis/figures/coverage_ap.png`);
-Figure 2, the R3 concept × layer heatmap.
+TODO (job running):
+- Figure 1: the rung × concept AUROC coverage heatmap (`runs/analysis/figures/coverage_auroc.png`).
+- Figure 2: the R3 concept × layer heatmap.
+- Figure 3: precision-recall curves of each rung's validation-selected best unit per concept
+  (`pr_curves.png`).
 
 A pilot on one R3 model (synth_R3_s1, few resamples) shows two things:
 - Nearly every concept has a single dedicated unit (chance-corrected AP > 0.95 for degree, fan and

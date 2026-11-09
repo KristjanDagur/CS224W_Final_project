@@ -5,10 +5,10 @@ import json
 import numpy as np
 import pytest
 import torch
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 from amlinterp.analysis.dissection import (
-    average_precision, bootstrap_coverage, chance_level, coverage, iou, permutation_null, stack_units, unit_scores,
+    auroc, average_precision, bootstrap_coverage, chance_level, coverage, iou, permutation_null, stack_units, unit_scores,
 )
 from amlinterp.analysis.hooks import extract_run, load_run
 from amlinterp.data.synthetic import CirculantConfig, make_split
@@ -31,6 +31,21 @@ def test_average_precision_matches_sklearn_with_ties_and_weights():
             assert ours_w[k, c] == pytest.approx(average_precision_score(concepts[:, c], acts[:, k], sample_weight=w))
 
 
+def test_auroc_matches_sklearn_with_ties_and_weights():
+    rng = np.random.default_rng(4)
+    acts = rng.integers(0, 5, size=(300, 7)).astype(float)  # many ties
+    acts[:, 0] = 1.0                                        # a constant unit -> 0.5
+    concepts = rng.random((300, 3)) < [0.1, 0.4, 0.8]
+    w = rng.integers(0, 3, size=300).astype(float)
+    ours, ours_w = auroc(acts, concepts), auroc(acts, concepts, w)
+    for k in range(7):
+        for c in range(3):
+            assert ours[k, c] == pytest.approx(roc_auc_score(concepts[:, c], acts[:, k]))
+            assert ours_w[k, c] == pytest.approx(roc_auc_score(concepts[:, c], acts[:, k], sample_weight=w))
+    signed = unit_scores(acts, concepts)
+    assert np.allclose(signed["auroc"], np.maximum(ours, 1 - ours))
+
+
 def test_planted_units_are_found_with_their_sign():
     rng = np.random.default_rng(1)
     n = 2000
@@ -43,6 +58,8 @@ def test_planted_units_are_found_with_their_sign():
     assert s["iou"][5, 0] == pytest.approx(1.0) and s["iou_sign"][5, 0] == 1
     assert s["iou"][6, 1] == pytest.approx(1.0) and s["iou_sign"][6, 1] == -1
     assert s["ap"][6, 1] == pytest.approx(1.0) and s["ap_sign"][6, 1] == -1
+    assert s["auroc"][6, 1] == pytest.approx(1.0) and s["auroc_sign"][6, 1] == -1
+    assert np.allclose(s["auroc"][7], 0.5)                                # constant unit
     assert np.all(s["iou"][7] == 0)                                       # ties at tau are excluded
     assert s["ap"][7] == pytest.approx(concepts.mean(0))                  # constant score -> base rate
     cov = coverage(s, np.array(["h0"] * 5 + ["h1"] * 3))

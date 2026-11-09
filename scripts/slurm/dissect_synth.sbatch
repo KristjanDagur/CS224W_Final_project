@@ -4,8 +4,9 @@
 #   FarmShare: scripts/submit.sh cpu scripts/slurm/dissect_synth.sbatch
 #   Sherlock (normal queue was ~24 h on 2026-11-08; dev rejects sbatch, so run it interactively):
 #     srun -p dev -c 4 --mem=16G -t 02:00:00 bash scripts/slurm/dissect_synth.sbatch
+#   (an interactive srun dies with the shell that started it; rerunning resumes, see below)
 # Env: SPLIT (default test), OUT (default runs/analysis/dissection_synth_<split>), N_BOOT, N_PERM.
-# About 22 CPU-minutes per run with 100 bootstrap + 20 permutation resamples.
+# About 20-30 CPU-minutes per run with 100 bootstrap + 20 permutation resamples (IoU, AP, AUROC).
 #SBATCH --job-name=dissect_synth
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
@@ -26,8 +27,13 @@ if [ ${#missing[@]} -gt 0 ]; then
     OMP_NUM_THREADS=$NPROC python -m amlinterp.analysis.hooks --run "${missing[@]}" --split "$SPLIT"
 fi
 
+# Runs whose result file exists are skipped, so a killed job (time limit, closed interactive session)
+# resumes where it stopped. Delete $OUT/ to recompute everything.
 mkdir -p "$OUT"
-printf '%s\n' "${runs[@]}" | xargs -P "$NPROC" -I{} bash -c '
+todo=()
+for r in "${runs[@]}"; do [ -f "$OUT/$(basename "$r").json" ] || todo+=("$r"); done
+echo "${#todo[@]} of ${#runs[@]} runs to dissect"
+[ ${#todo[@]} -eq 0 ] || printf '%s\n' "${todo[@]}" | xargs -P "$NPROC" -I{} bash -c '
     source scripts/activate.sh
     run=$(basename {})
     OMP_NUM_THREADS=1 python -m amlinterp.analysis.dissection --acts {}/activations_'"$SPLIT"'.pt \
