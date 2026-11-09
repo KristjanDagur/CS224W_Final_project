@@ -130,7 +130,7 @@ the result as a `.pt` file in `data/processed/`. Port computation is slow, so ne
 | Item | Date | Notes |
 |---|---|---|
 | Proposal | 2026-10-20 | done |
-| Milestone | 2026-11-10 | credit/no-credit: code (data processing, train/eval) + report draft |
+| Milestone | 2026-11-11 | credit/no-credit: code (data processing, train/eval) + report draft |
 | Final | 2026-12-10 | Medium blog draft link + Google Colab + Medium account name |
 
 ## Key references

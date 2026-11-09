@@ -151,7 +151,7 @@ building analyses on top.
 
 ## Project status / next steps
 
-Milestone due 2026-11-10. **Coming from the Sherlock run of 2026-11-08/09? Read `docs/handoff.md` first** (artifacts to import, next steps).
+Milestone due **2026-11-11** 23:59 PT (course Project Instructions, Fall 2026; credit/no credit, no required format). **Coming from the Sherlock run of 2026-11-08/09? Read `docs/handoff.md` first** (artifacts to import, next steps).
 
 - [x] Pinned env (`requirements.txt` + `scripts/setup_env.sh`): verified on FarmShare CPU nodes and an L40S GPU node (driver 595.91, CUDA 13.2); Sherlock via Apptainer (2026-11-08); laptop not yet verified
 - [x] AMLworld preprocessing + cached ports (`data/aml.py`); patterns parser + stats (`data/patterns.py`, `stats.json`)

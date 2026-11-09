@@ -110,6 +110,18 @@ class GINLadder(nn.Module):
         self.norms = nn.ModuleList(nn.BatchNorm1d(hidden) for _ in range(num_layers))
         dec_in = 3 * hidden if readout == "edge" else hidden
         self.decoder = _decoder(dec_in, out_dim, final_dropout)
+        self._intervention = None  # see set_intervention (not a parameter, not in the state dict)
+
+    def set_intervention(self, fn=None) -> None:
+        """Install a function that edits node states during ``forward`` (``None`` removes it).
+
+        ``fn(layer, h)`` is called on every node-state layer: ``layer = 0`` after the embedding,
+        then ``layer = l`` after GNN layer ``l``. It returns the (possibly modified) states, which
+        the rest of the forward pass uses, so the change reaches later message passing and the
+        readout. This is how ``analysis.ablation`` mean-ablates units. A function that returns
+        ``h`` unchanged can also record statistics.
+        """
+        self._intervention = fn
 
     def forward(
         self,
@@ -141,6 +153,8 @@ class GINLadder(nn.Module):
         if self.reverse_mp and (rev_edge_index is None or rev_edge_attr is None):
             raise ValueError("reverse_mp=True needs rev_edge_index and rev_edge_attr")
         h = self.node_emb(x)
+        if self._intervention is not None:
+            h = self._intervention(0, h)
         e = self.edge_emb(edge_attr)
         e_rev = self.edge_emb_rev(rev_edge_attr) if self.reverse_mp else None
         hidden = [h]
@@ -149,6 +163,8 @@ class GINLadder(nn.Module):
             if self.reverse_mp:
                 m = (m + self.convs_rev[i](h, rev_edge_index, e_rev)) / 2
             h = (h + torch.relu(self.norms[i](m))) / 2
+            if self._intervention is not None:
+                h = self._intervention(i + 1, h)
             hidden.append(h)
 
         if self.readout == "node":

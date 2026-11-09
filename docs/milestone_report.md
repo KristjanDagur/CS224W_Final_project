@@ -248,13 +248,22 @@ test graph (`degree_baseline.csv`, `amlinterp.analysis.baselines`).
   is nearly in-degree (in-degree alone: 0.989). The theory's ports step for fan-in can therefore not
   show up on this dataset.
 
-**Finding 2: the depth at which a k-cycle detector appears is k + 1.** In R3, the first layer with a
-unit at AUROC ≥ 0.99 is h3 for C2, h4 for C3, h5 for C4 and h6 for C5. This holds in all three seeds
-(Fig. 2). C6 never gets there within six layers (0.90–0.94 at h6).
-- The theory only needs k layers for the ego bit to travel around a k-cycle. The trained models use one
-  more.
-- This explains the R3 C6 shortfall in Table 1 (78.3 vs 84.2), and it makes a testable prediction: an
-  R3 model with seven or more layers should detect 6-cycles.
+**Finding 2: a k-cycle detector never appears before layer k + 1, and depth is what limits 6-cycles.**
+In the 6-layer R3 models, the first layer with a unit at AUROC ≥ 0.99 is h3 for C2, h4 for C3, h5 for C4
+and h6 for C5. This holds in all three seeds (Fig. 2). C6 never gets there (0.90–0.94 at h6).
+- The theory only needs k layers for the ego bit to travel around a k-cycle. The trained models need
+  at least one more.
+- **Test of the prediction.** We trained R3 with **7 layers**, changing nothing else
+  (`synth_R3_L7_h64_s{1,2,3}`; `runs/analysis/depth_R3.md`).
+  - C6 test F1 rises from **78.3 ± 0.6 to 93.4 ± 3.3**, above the paper's 84.2.
+  - The best C6 unit at h7 reaches AUROC 0.99 / 0.94 / 0.99 (seed 1 crosses 0.99; at 6 layers:
+    0.93 / 0.94 / 0.90).
+  - All other concepts are unchanged (within 0.7 F1).
+- **The exact layer is a lower bound, not a fixed rule.** With 7 layers, C2 and C3 stay at h3 and h4,
+  but C4 moves to h6 in two seeds and C5 to h7. Across all six R3 models, no C_k detector appears
+  before h(k+1).
+- **So the C6 shortfall at 6 layers is a depth limit, not a training failure.** One extra layer recovers
+  it.
 
 **Finding 3: single units suffice at R3.** For 10 of 11 concepts (all except C6), an R3 model has one GNN
 unit with AUROC ≥ 0.99. The PR curves confirm this is not an artifact of picking the best unit on the
@@ -266,33 +275,39 @@ probes, to separate "represented" from "dedicated unit".
 
 ### 5.3 AMLworld ladder
 
-**Seed 1 only.** Seeds 2–3 are running. Regenerate with
-`python -m amlinterp.analysis.aml_table` (writes `runs/analysis/aml_ladder_table.{md,csv}`).
+Three seeds per rung. Regenerate with `python -m amlinterp.analysis.aml_table`, which writes
+`runs/analysis/aml_ladder_table.{md,csv}`.
 
 | Rung | Seeds | F1 @ 0.5 | Egressy Table 2 | F1 @ val-tuned thr. | Thresholds picked | Test PR-AUC | PR-AUC of random |
 |---|---|---|---|---|---|---|---|
-| R0 GIN | 1 | 38.85 | 28.70 ± 1.13 | 40.28 | 0.60 | 34.88 | 0.19 |
-| R1 +reverse MP | 1 | 56.49 | 46.79 ± 4.97 | 57.83 | 0.55 | 58.29 | 0.19 |
-| R2 +ports | 1 | 58.38 | 56.85 ± 2.64 | 60.42 | 0.60 | 61.01 | 0.19 |
-| R3 +ego IDs | 1 | 46.71 | 57.15 ± 4.99 | 58.58 | 0.75 | 55.51 | 0.19 |
+| R0 GIN | 1 2 3 | 35.23 ± 7.89 | 28.70 ± 1.13 | 35.99 ± 8.13 | 0.60 / 0.55 / 0.60 | 27.86 ± 9.46 | 0.19 |
+| R1 +reverse MP | 1 2 3 | 53.04 ± 4.74 | 46.79 ± 4.97 | 54.03 ± 4.74 | 0.55 / 0.55 / 0.55 | 52.92 ± 6.57 | 0.19 |
+| R2 +ports | 1 2 3 | 60.47 ± 3.63 | 56.85 ± 2.64 | 61.95 ± 2.40 | 0.60 / 0.60 / 0.55 | 60.13 ± 0.99 | 0.19 |
+| R3 +ego IDs | 1 2 3 | 55.66 ± 9.30 | 57.15 ± 4.99 | 61.07 ± 3.67 | 0.75 / 0.50 / 0.75 | 58.51 ± 3.83 | 0.19 |
 
-How to read the columns (all values are percentages):
+How to read the columns (all values are percentages; mean ± sd over seeds):
 - **F1 @ 0.5** is laundering-class F1 on test when a transaction is flagged at P(laundering) > 0.5.
   This is IBM's argmax, the number Egressy Table 2 reports.
 - **F1 @ val-tuned thr.** uses the cut-off that maximizes validation F1 (grid 0.05–0.95). Test never
-  influences the choice.
+  influences the choice. The cut-off each seed picked is listed.
 - **PR-AUC** (average precision) is threshold-free. A random scorer's expected value is the positive
   rate, which is the test illicit ratio of 0.19%.
 
-Observations, to be confirmed over seeds:
-- **Reverse MP is the large step**, +17.6 F1 (paper: +18.1). R2 lands within the paper's sd.
-- **R0 and R1 are above the paper.** A replicate of R0 seed 1 on a second cluster gave 31.83, so a
-  single run moves by several points (GPU nondeterminism and neighbor sampling).
-- **Every rung's tuned threshold is above 0.5**, so all four models over-flag on test at 0.5. Test has
-  1.7× the illicit ratio of validation.
-- **R3 is hit hardest.** It has the best validation F1 (57.4), but test F1 is 46.7 at 0.5. At its tuned
-  threshold of 0.75 it reaches 58.6, so the drop is a calibration shift, not a ranking problem
-  (PR-AUC 55.5).
+Observations:
+- **The ladder reproduces Egressy Table 2 within noise.** R1–R3 are within about 1.4 of the paper's
+  sd. Reverse MP is the large step (+17.8 F1; paper +18.1), and ports add another +7.4 (paper +10.1).
+- **R0 varies a lot from run to run** (seeds: 38.9 / 40.7 / 26.2). A replicate of seed 1 on a second
+  cluster gave 31.8. R0's mean is above the paper, but the paper's GIN row is copied from Altman et al.
+  (2023), who used different hyperparameters and 4 seeds.
+- **R3 vs R2 is unresolved.** At 0.5, R3 has the largest spread (46.7 / 65.3 / 55.0). With
+  validation-tuned thresholds, its spread shrinks to ± 3.7, and R2 and R3 are tied (62.0 vs 61.1).
+  Two of three R3 seeds pick a threshold of 0.75. Much of R3's variance at 0.5 is therefore a
+  calibration shift on test (test has 1.7× the illicit ratio of validation), not worse ranking. The
+  PR-AUCs, 60.1 and 58.5, are also within one sd.
+- **The adaptations matter less for AML than for synthetic data.** With 2 layers, ego IDs can only
+  close 2–3-hop cycles. The test split has just 6 such cycle attempts.
+- **Hardware:** seed 1 ran on L40S. Seeds 2–3 ran on a mix of L40S, RTX 3090 and H100, recorded per run
+  in `config.json`. GPU nondeterminism is one source of the run-to-run spread.
 
 ## 6. Plan for the rest of the quarter
 

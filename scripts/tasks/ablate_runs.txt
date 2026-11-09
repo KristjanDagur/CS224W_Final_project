@@ -1,0 +1,15 @@
+runs/synth_R0_L6_h64_s1
+runs/synth_R0_L6_h64_s2
+runs/synth_R0_L6_h64_s3
+runs/synth_R1_L6_h64_s1
+runs/synth_R1_L6_h64_s2
+runs/synth_R1_L6_h64_s3
+runs/synth_R2_L6_h64_s1
+runs/synth_R2_L6_h64_s2
+runs/synth_R2_L6_h64_s3
+runs/synth_R3_L6_h64_s1
+runs/synth_R3_L6_h64_s2
+runs/synth_R3_L6_h64_s3
+runs/synth_R3_L7_h64_s1
+runs/synth_R3_L7_h64_s2
+runs/synth_R3_L7_h64_s3
