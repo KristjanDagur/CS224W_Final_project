@@ -10,6 +10,10 @@ For unit ``k`` with activations ``a_k`` over the scored items and a binary conce
   excluded, so a constant unit gets IoU 0.
 * **AP.** Average precision of ``a_k`` as a score for ``C_c``. It is threshold-free and is the better
   measure for rare concepts (AGENTS.md, fact 6). Chance level is ``p_c``.
+* **AUROC.** The probability that a random concept item activates the unit more than a random
+  non-concept item (ties count one half). Chance is 0.5 for every concept, so scores are comparable
+  across concepts with different base rates (the synthetic ones range from 0.19 to 0.78). For very
+  rare concepts it is dominated by the many easy negatives, so AP stays the headline metric there.
 * **Sign.** Hidden states are not ReLU'd, so a unit can encode a concept by being *low*. With
   ``signed=True`` (default) each unit is scored as ``a_k`` and as ``-a_k``, and the better
   direction is kept (recorded as +1 / -1).
@@ -41,6 +45,7 @@ import numpy as np
 import torch
 
 CHUNK = 64
+METRICS = ("iou", "ap", "auroc")
 """Units processed at once in ``average_precision`` (bounds memory at about N * CHUNK * M floats)."""
 
 
@@ -87,6 +92,48 @@ def average_precision(acts: np.ndarray, concepts: np.ndarray, weights: np.ndarra
         return out / total_pos
 
 
+def auroc(acts: np.ndarray, concepts: np.ndarray, weights: np.ndarray | None = None) -> np.ndarray:
+    """ROC AUC of every unit as a score for every concept (ties count one half).
+
+    AUROC is the probability that a random concept item gets a higher activation than a random
+    non-concept item (the Mann-Whitney statistic), so chance is 0.5 whatever the base rate.
+    Equivalent to ``sklearn.metrics.roc_auc_score(concepts[:, c], acts[:, k], sample_weight=weights)``.
+
+    Args:
+        acts: (N, K) unit activations.
+        concepts: (N, M) binary concept masks.
+        weights: optional (N,) non-negative item weights (bootstrap counts).
+
+    Returns:
+        (K, M) AUROC. Concepts without both (weighted) positives and negatives get NaN.
+    """
+    n, k_units = acts.shape
+    y = concepts.astype(np.float64)
+    w = np.ones(n) if weights is None else np.asarray(weights, dtype=np.float64)
+    wy, wn = y * w[:, None], (1.0 - y) * w[:, None]       # (N, M)
+    denom = wy.sum(0) * wn.sum(0)                          # (M,)
+    out = np.empty((k_units, y.shape[1]))
+    rows = np.arange(n)[:, None]
+    for start in range(0, k_units, CHUNK):
+        a = acts[:, start:start + CHUNK]
+        order = np.argsort(a, axis=0, kind="stable")       # (N, k) ascending
+        s = np.take_along_axis(a, order, axis=0)
+        # First and last index of each item's tie block.
+        is_first = np.ones_like(s, dtype=bool)
+        is_first[1:] = s[1:] != s[:-1]
+        is_last = np.ones_like(s, dtype=bool)
+        is_last[:-1] = s[1:] != s[:-1]
+        block_start = np.maximum.accumulate(np.where(is_first, rows, 0), axis=0)
+        block_end = np.minimum.accumulate(np.where(is_last, rows, n)[::-1], axis=0)[::-1]
+        cn = np.cumsum(wn[order], axis=0)                  # (N, k, M) negatives at or below
+        cn = np.concatenate([np.zeros((1,) + cn.shape[1:]), cn], axis=0)  # cn[i] = negatives before i
+        below = np.take_along_axis(cn, block_start[..., None], axis=0)    # strictly lower
+        upto = np.take_along_axis(cn, block_end[..., None] + 1, axis=0)   # lower or tied
+        out[start:start + a.shape[1]] = (wy[order] * 0.5 * (below + upto)).sum(0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return out / denom
+
+
 def iou(acts: np.ndarray, concepts: np.ndarray, quantile: float | None = None,
         weights: np.ndarray | None = None) -> np.ndarray:
     """IoU between each unit's binarized activation mask and each concept mask.
@@ -119,19 +166,20 @@ def iou(acts: np.ndarray, concepts: np.ndarray, quantile: float | None = None,
 
 def unit_scores(acts: np.ndarray, concepts: np.ndarray, signed: bool = True, quantile: float | None = None,
                 weights: np.ndarray | None = None) -> dict[str, np.ndarray]:
-    """IoU and AP of every unit for every concept, keeping each unit's better direction.
+    """IoU, AP and AUROC of every unit for every concept, keeping each unit's better direction.
 
     Returns:
-        ``{"iou", "ap"}``: (K, M) scores; ``{"iou_sign", "ap_sign"}``: (K, M) +1 if the unit
-        detects the concept by being high, -1 if by being low.
+        ``{metric}``: (K, M) scores for each metric in ``METRICS``; ``{metric}_sign``: (K, M) +1 if
+        the unit detects the concept by being high, -1 if by being low.
     """
     acts = np.asarray(acts, dtype=np.float64)
     out = {}
     for name, fn in (("iou", lambda a: iou(a, concepts, quantile, weights)),
-                     ("ap", lambda a: average_precision(a, concepts, weights))):
+                     ("ap", lambda a: average_precision(a, concepts, weights)),
+                     ("auroc", lambda a: auroc(a, concepts, weights))):
         pos = fn(acts)
         if signed:
-            neg = fn(-acts)
+            neg = 1.0 - pos if name == "auroc" else fn(-acts)  # AUROC(-a) = 1 - AUROC(a) exactly
             better = np.nan_to_num(neg, nan=-1) > np.nan_to_num(pos, nan=-1)
             out[name] = np.where(better, neg, pos)
             out[f"{name}_sign"] = np.where(better, -1, 1)
@@ -163,11 +211,11 @@ def coverage(scores: dict[str, np.ndarray], unit_layer: np.ndarray | None = None
     """Best unit per concept, overall and per layer.
 
     Returns:
-        For each metric (``iou``, ``ap``): ``{"value": (M,), "unit": (M,) best-unit index,
+        For each metric in ``METRICS``: ``{"value": (M,), "unit": (M,) best-unit index,
         "sign": (M,), "per_layer": {layer: (M,)}}``.
     """
     out = {}
-    for metric in ("iou", "ap"):
+    for metric in METRICS:
         s = np.nan_to_num(scores[metric], nan=-np.inf)
         best = s.argmax(0)
         res = {"value": s.max(0), "unit": best, "sign": scores[f"{metric}_sign"][best, np.arange(s.shape[1])]}
@@ -180,11 +228,13 @@ def coverage(scores: dict[str, np.ndarray], unit_layer: np.ndarray | None = None
 def chance_level(metric: str, rate: float, quantile: float | None = None) -> float:
     """Expected score of a single unit unrelated to the concept (base rate ``rate``).
 
-    AP: ``rate``. IoU: a random mask of size ``q`` (``q = rate`` when rate-matched) overlaps the
+    AP: ``rate``. AUROC: 0.5. IoU: a random mask of size ``q`` (``q = rate`` when rate-matched) overlaps the
     concept in ``q * rate`` of the items, so IoU = ``q*rate / (q + rate - q*rate)``.
     """
     if metric == "ap":
         return rate
+    if metric == "auroc":
+        return 0.5
     q = rate if quantile is None else quantile
     return q * rate / (q + rate - q * rate)
 
@@ -197,10 +247,10 @@ def permutation_null(acts: np.ndarray, concepts: np.ndarray, n_perm: int = 20, s
     every concept's base rate, and breaks only the item-level link between them.
 
     Returns:
-        ``{"iou": (n_perm, M), "ap": (n_perm, M)}``.
+        ``{metric: (n_perm, M)}`` for each metric in ``METRICS``.
     """
     rng = np.random.default_rng(seed)
-    out = {"iou": [], "ap": []}
+    out = {m: [] for m in METRICS}
     for _ in range(n_perm):
         s = unit_scores(acts, concepts[rng.permutation(len(concepts))], **kwargs)
         for metric in out:
@@ -220,13 +270,13 @@ def bootstrap_coverage(acts: np.ndarray, concepts: np.ndarray, n_boot: int = 100
         seed: RNG seed.
 
     Returns:
-        ``{"iou": (n_boot, M), "ap": (n_boot, M)}``.
+        ``{metric: (n_boot, M)}`` for each metric in ``METRICS``.
     """
     rng = np.random.default_rng(seed)
     if groups is None:
         groups = np.arange(len(acts))
     uniq, inv = np.unique(groups, return_inverse=True)
-    out = {"iou": [], "ap": []}
+    out = {m: [] for m in METRICS}
     for _ in range(n_boot):
         counts = np.bincount(rng.integers(0, len(uniq), len(uniq)), minlength=len(uniq))
         s = unit_scores(acts, concepts, weights=counts[inv].astype(np.float64), **kwargs)
@@ -264,7 +314,7 @@ def dissect_file(path: Path, n_boot: int = 100, n_perm: int = 20, quantile: floa
     per_concept = {}
     for j, c in enumerate(label_names):
         entry = {"base_rate": float(rates[j])}
-        for m in ("iou", "ap"):
+        for m in METRICS:
             e = {
                 "value": float(cov[m]["value"][j]),
                 "unit": names[cov[m]["unit"][j]],
@@ -340,7 +390,7 @@ def main() -> None:
         print(r["run_id"], {c: round(v["iou"]["value"], 3) for c, v in r["concepts"].items()}, flush=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.with_suffix(".json").write_text(json.dumps(results, indent=2))
-    rows = summarize(results, "iou") + summarize(results, "ap")
+    rows = [row for m in METRICS for row in summarize(results, m)]
     with open(f"{args.out}_summary.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
