@@ -204,25 +204,95 @@ Deviations, logged as found:
 
 ### 5.2 Dissection: which concepts get a dedicated unit, and where
 
-TODO (job running):
-- Figure 1: the rung × concept AUROC coverage heatmap (`runs/analysis/figures/coverage_auroc.png`).
-- Figure 2: the R3 concept × layer heatmap.
-- Figure 3: precision-recall curves of each rung's validation-selected best unit per concept
-  (`pr_curves.png`).
+**Setup.**
+- All 12 synthetic models are dissected on the test graph, with exact ego IDs.
+- Each model has 523 units: h0–h6 (64 each) plus the two decoder layers (50 and 25).
+- Each unit is scored in both directions against each of the 11 labels.
+- A concept's *coverage* is the score of the best single unit in the GNN layers h1–h6. The decoder is
+  excluded, because it sits next to the output.
+- Because that is a best-of-384 choice, its chance level comes from a permutation null: the 95th
+  percentile is about 0.52–0.53 AUROC. Every coverage value below exceeds it in every seed.
+- Cross-check: activations re-extracted on a second cluster reproduce the dissection exactly (difference
+  0.00, same best unit for all 11 concepts).
 
-A pilot on one R3 model (synth_R3_s1, few resamples) shows two things:
-- Nearly every concept has a single dedicated unit (chance-corrected AP > 0.95 for degree, fan and
-  C2–C5).
-- **The layer at which the best k-cycle unit appears grows with k:** C2 at layer 3, C3 at layer 4, C4 at
-  layer 5, C5 and C6 at layer 6. This is consistent with the ego bit having to travel around the cycle
-  before the node can detect it.
+Figures: `runs/analysis/figures/coverage_auroc.png` (Fig. 1), `layers_R3_auroc.png` (Fig. 2) and
+`pr_curves.png` (Fig. 3; each unit is chosen on validation and its curve drawn on test).
 
-TODO: confirm across seeds and rungs.
+**Caveat.** On synthetic data the concepts are also the training targets. An accurate model must encode
+them somewhere, so coverage partly restates Table 1. The two controls below carry the
+interpretation.
+
+**Finding 1: dedicated detectors appear at the rung the theory predicts, once degree is controlled
+for.** Cycle membership, scatter-gather and biclique sinks all correlate with degree, even in random
+graphs. Table: AUROC coverage (mean of 3 seeds) next to the best single degree statistic on the same
+test graph (`degree_baseline.csv`, `amlinterp.analysis.baselines`).
+
+| Concept | Degree only | R0 | R1 | R2 | R3 |
+|---|---|---|---|---|---|
+| C2 | 0.74 (total) | 0.71 | 0.76 | 0.75 | **1.00** |
+| C3 | 0.77 (total) | 0.73 | 0.78 | 0.77 | **1.00** |
+| C4 | 0.78 (total) | 0.75 | 0.81 | 0.79 | **1.00** |
+| C5 | 0.81 (total) | 0.76 | 0.86 | 0.83 | **1.00** |
+| C6 | 0.84 (total) | 0.78 | 0.90 | 0.89 | **0.92** |
+| S-G | 0.84 (fan-in) | 0.87 | 0.84 | 0.82 | **1.00** |
+| B-C | 0.85 (fan-in) | 0.84 | 0.83 | 0.82 | **1.00** |
+
+- **Below R3, the "cycle units" are degree units.** R0–R2 stay within about 0.06 of the degree-only
+  score (C6 under R1: +0.07). R0 sits below total degree because it only sees in-degree (in-degree alone
+  scores 0.68–0.73).
+- **At R3, coverage jumps** 0.15–0.26 above the degree baseline for C2–C5, S-G and B-C. This is the
+  jump H1 predicts.
+- **Out-degree and fan-out** are absent at R0 (0.55, against an in-degree-only baseline of 0.50) and
+  near-perfect from R1 on.
+- **Fan-in** is already covered at R0 (0.99), because parallel edges are rare in these graphs and fan-in
+  is nearly in-degree (in-degree alone: 0.989). The theory's ports step for fan-in can therefore not
+  show up on this dataset.
+
+**Finding 2: the depth at which a k-cycle detector appears is k + 1.** In R3, the first layer with a
+unit at AUROC ≥ 0.99 is h3 for C2, h4 for C3, h5 for C4 and h6 for C5. This holds in all three seeds
+(Fig. 2). C6 never gets there within six layers (0.90–0.94 at h6).
+- The theory only needs k layers for the ego bit to travel around a k-cycle. The trained models use one
+  more.
+- This explains the R3 C6 shortfall in Table 1 (78.3 vs 84.2), and it makes a testable prediction: an
+  R3 model with seven or more layers should detect 6-cycles.
+
+**Finding 3: single units suffice at R3.** For 10 of 11 concepts (all except C6), an R3 model has one GNN
+unit with AUROC ≥ 0.99. The PR curves confirm this is not an artifact of picking the best unit on the
+scored data: units chosen on validation keep precision ≈ 1 up to recall ≈ 1 on test for C2–C5, S-G and
+B-C (Fig. 3).
+
+Next: concepts the models were not trained on (e.g. cycle counts, other degree thresholds), and linear
+probes, to separate "represented" from "dedicated unit".
 
 ### 5.3 AMLworld ladder
 
-TODO (running on Sherlock GPUs since 2026-11-08). Compare to Egressy Table 2: GIN 28.70 ± 1.13,
-+ReverseMP 46.79 ± 4.97, +Ports 56.85 ± 2.64, +EgoIDs 57.15 ± 4.99.
+**Seed 1 only.** Seeds 2–3 are running. Regenerate with
+`python -m amlinterp.analysis.aml_table` (writes `runs/analysis/aml_ladder_table.{md,csv}`).
+
+| Rung | Seeds | F1 @ 0.5 | Egressy Table 2 | F1 @ val-tuned thr. | Thresholds picked | Test PR-AUC | PR-AUC of random |
+|---|---|---|---|---|---|---|---|
+| R0 GIN | 1 | 38.85 | 28.70 ± 1.13 | 40.28 | 0.60 | 34.88 | 0.19 |
+| R1 +reverse MP | 1 | 56.49 | 46.79 ± 4.97 | 57.83 | 0.55 | 58.29 | 0.19 |
+| R2 +ports | 1 | 58.38 | 56.85 ± 2.64 | 60.42 | 0.60 | 61.01 | 0.19 |
+| R3 +ego IDs | 1 | 46.71 | 57.15 ± 4.99 | 58.58 | 0.75 | 55.51 | 0.19 |
+
+How to read the columns (all values are percentages):
+- **F1 @ 0.5** is laundering-class F1 on test when a transaction is flagged at P(laundering) > 0.5.
+  This is IBM's argmax, the number Egressy Table 2 reports.
+- **F1 @ val-tuned thr.** uses the cut-off that maximizes validation F1 (grid 0.05–0.95). Test never
+  influences the choice.
+- **PR-AUC** (average precision) is threshold-free. A random scorer's expected value is the positive
+  rate, which is the test illicit ratio of 0.19%.
+
+Observations, to be confirmed over seeds:
+- **Reverse MP is the large step**, +17.6 F1 (paper: +18.1). R2 lands within the paper's sd.
+- **R0 and R1 are above the paper.** A replicate of R0 seed 1 on a second cluster gave 31.83, so a
+  single run moves by several points (GPU nondeterminism and neighbor sampling).
+- **Every rung's tuned threshold is above 0.5**, so all four models over-flag on test at 0.5. Test has
+  1.7× the illicit ratio of validation.
+- **R3 is hit hardest.** It has the best validation F1 (57.4), but test F1 is 46.7 at 0.5. At its tuned
+  threshold of 0.75 it reaches 58.6, so the drop is a calibration shift, not a ranking problem
+  (PR-AUC 55.5).
 
 ## 6. Plan for the rest of the quarter
 

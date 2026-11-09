@@ -1,0 +1,3 @@
+--config configs/synthetic.yaml --rung R3 --seed 1 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R3 --seed 2 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R3 --seed 3 --set lr=3e-3 num_workers=4 num_layers=7

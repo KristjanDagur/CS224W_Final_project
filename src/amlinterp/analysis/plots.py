@@ -201,12 +201,18 @@ def _gnn_units(acts: dict) -> dict:
 
 
 def precision_at_recall(y: np.ndarray, score: np.ndarray, grid: np.ndarray = RECALL_GRID) -> np.ndarray:
-    """Precision of the highest threshold that reaches each recall level (no interpolation)."""
+    """Precision of the highest threshold that reaches each recall level (no interpolation).
+
+    sklearn returns points in increasing-threshold order, so recall is non-increasing along the
+    arrays. With tied scores several thresholds share one recall level (e.g. every threshold below
+    a tied block that holds all positives has recall 1), so the point must be chosen by threshold,
+    not by recall alone. The final sentinel point (recall 0, precision 1) has no threshold and is
+    dropped.
+    """
     prec, rec, _ = precision_recall_curve(y, score)
-    order = np.argsort(rec, kind="stable")                 # recall ascending
-    rec, prec = rec[order], prec[order]
-    idx = np.clip(np.searchsorted(rec, grid, side="left"), 0, len(rec) - 1)
-    return prec[idx]
+    prec, rec = prec[:-1], rec[:-1]
+    n_reach = np.searchsorted(-rec, -grid, side="right")   # points with rec >= r (-rec is non-decreasing)
+    return prec[np.clip(n_reach - 1, 0, len(rec) - 1)]   # the last of them = highest threshold
 
 
 def pr_curves(select_files: list[Path], eval_files: list[Path]) -> tuple[dict, list[dict]]:

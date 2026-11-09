@@ -173,3 +173,25 @@ def test_extract_aml_edges(aml_data_dir, tmp_path):
     assert len(d["ids"].unique()) == n
     assert torch.equal(d["y"], g["y"][d["ids"]])
     assert d["meta"]["protocol"]["item"] == "edge" and d["meta"]["protocol"]["ego_mode"] == "batch"
+
+
+def test_precision_at_recall_handles_tied_scores():
+    """Regression (2026-11-08): a perfect detector with tied scores was drawn at base-rate precision."""
+    import numpy as np
+    from sklearn.metrics import precision_recall_curve
+    from amlinterp.analysis.plots import RECALL_GRID, precision_at_recall
+
+    y = np.array([1] * 30 + [0] * 70)
+    # All 30 positives share one tied top value; negatives sit in four lower tied blocks.
+    tied_perfect = np.concatenate([np.full(30, 2.0), np.repeat([1.0, 0.5, 0.0, -1.0], [20, 20, 20, 10])])
+    p = precision_at_recall(y, tied_perfect)
+    assert np.allclose(p[RECALL_GRID > 0], 1.0)
+
+    rng = np.random.default_rng(0)                              # brute force on random scores with ties
+    y = rng.random(400) < 0.3
+    s = rng.integers(0, 12, 400).astype(float)
+    p = precision_at_recall(y, s)
+    prec, rec, thr = precision_recall_curve(y, s)
+    for r, got in zip(RECALL_GRID, p):
+        best_thr = max(t for t, rr in zip(thr, rec[:-1]) if rr >= r)
+        assert got == prec[:-1][list(thr).index(best_thr)]

@@ -162,7 +162,7 @@ Milestone due 2026-11-10:
 - [x] Synthetic training R0–R3 × 3 seeds (6 layers, lr 3e-3; `scripts/tasks/synth_final.txt`): Table 1 reproduced (Sherlock job 51581520, 2026-11-08; deviations in the experiment log)
 - [ ] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`); compare to Table 2. Running on Sherlock (job 51581524, started 2026-11-08)
 - [x] Activation hooks with `ego_mode` (`analysis/hooks.py`) and dissection code (`analysis/dissection.py`: rate-matched IoU + AP, signed units, permutation null, group bootstrap); tested on planted units and tiny graphs
-- [ ] Dissection on trained synthetic runs (`scripts/slurm/dissect_synth.sbatch`); first rung × concept heatmap (`analysis/plots.py`)
+- [x] Dissection on trained synthetic runs (`scripts/slurm/dissect_synth.sbatch`, figures via `scripts/slurm/analyze_synth.sbatch`); rung × concept heatmaps, per-layer heatmaps, PR curves, degree baseline (`analysis/baselines.py`); written up in milestone report §5.2
 - [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results): `docs/milestone_report.md`
 
 After the milestone: AML dissection, the exact-vs-batch ego experiment, cycle-length stratification, SAEs, ablations,

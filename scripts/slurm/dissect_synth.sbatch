@@ -5,7 +5,8 @@
 #   Sherlock (normal queue was ~24 h on 2026-11-08; dev rejects sbatch, so run it interactively):
 #     srun -p dev -c 4 --mem=16G -t 02:00:00 bash scripts/slurm/dissect_synth.sbatch
 #   (an interactive srun dies with the shell that started it; rerunning resumes, see below)
-# Env: SPLIT (default test), OUT (default runs/analysis/dissection_synth_<split>), N_BOOT, N_PERM.
+# Env: SPLIT (default test), OUT (default runs/analysis/dissection_synth_<split>), N_BOOT, N_PERM,
+#      RUNS (glob of run dirs, default 'runs/synth_R?_L6_h64_s?'; e.g. 'runs/synth_R3_L7_h64_s?').
 # About 20-30 CPU-minutes per run with 100 bootstrap + 20 permutation resamples (IoU, AP, AUROC).
 #SBATCH --job-name=dissect_synth
 #SBATCH --cpus-per-task=4
@@ -20,7 +21,7 @@ OUT=${OUT:-runs/analysis/dissection_synth_$SPLIT}
 NPROC=${SLURM_CPUS_PER_TASK:-4}
 echo "[$(date)] $(hostname) split=$SPLIT out=$OUT procs=$NPROC"
 
-runs=(runs/synth_R?_L6_h64_s?)
+runs=(${RUNS:-runs/synth_R?_L6_h64_s?})
 missing=()
 for r in "${runs[@]}"; do [ -f "$r/activations_$SPLIT.pt" ] || missing+=("$r"); done
 if [ ${#missing[@]} -gt 0 ]; then
