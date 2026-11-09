@@ -139,7 +139,8 @@ building analyses on top.
     - Request what a job really needs (about 8 CPUs and 32 GB for AML). Don't pad requests to jump the queue.
 - Request roughly 1 GPU, 8 CPUs, 32 GB RAM, and a time limit of 16 hours or less. Submit rung × seed as one job array.
 - **Sherlock (fallback; used 2026-11-08 while FarmShare was down).** Read `/etc/agents/AGENTS.md` and its topic files first; they are binding there.
-  - Host OS is CentOS 7 (glibc 2.17): the pinned torch 2.13 wheels (`manylinux_2_28`) cannot install, and there is no PyG module (newest `py-pytorch` is 2.10 on Python 3.14). Python therefore runs in an Apptainer image (`docker://python:3.12-bookworm`, which also provides a modern git for `config.json`) with the same pinned venv. Image and venv: `$GROUP_HOME/$USER/amlinterp/`. Build them inside a job: `scripts/slurm/setup_env.sbatch`.
+  - Host OS is CentOS 7 (glibc 2.17): the pinned torch 2.13 wheels (`manylinux_2_28`) cannot install, and there is no PyG module (newest `py-pytorch` is 2.10 on Python 3.14). Python therefore runs in an Apptainer image (`docker://python:3.12-bookworm`, which also provides a modern git for `config.json`) with the same pinned venv. Image and venv: `$HOME/envs/amlinterp/` (6.7 GB of the 15 GB home quota). Build them inside a job: `scripts/slurm/setup_env.sbatch`.
+  - **Do not use `$GROUP_HOME` or `$GROUP_SCRATCH`** (user decision, 2026-11-08). Environments may not go on `$SCRATCH` (Sherlock rule 8: purged), so the environment is in `$HOME`; everything else (data, runs, logs, pip/Apptainer caches) goes on `$SCRATCH`.
   - `data/`, `runs/`, `logs/` are symlinks into `$SCRATCH/CS224W/` (purged after 90 days unmodified: copy results you need to keep elsewhere).
   - `gpu` partition: L40S, H100, RTX 3090, V100, 2080 Ti, P100, Titan Xp; `cluster.sh` restricts to L40S/H100/3090. QOS `gpu`: 16 GPUs and 128 CPUs per user, 100 submitted jobs, 2-day limit, up to 32 GB per CPU.
   - `--exclude` is not supported on Sherlock; select hardware with `-C` only. No `--qos`/`--account` needed.
@@ -158,11 +159,11 @@ Milestone due 2026-11-10:
 - [x] Synthetic circulant generator + labelers (`data/synthetic.py`, tests vs brute force; rates match Table 3)
 - [x] Vectorized port numbering (`data/ports.py`, tested against IBM's loop)
 - [x] GIN ladder model + `train.py` (resumable) + synthetic task; smoke-tested on CPU
-- [ ] Synthetic training R0–R3 × 3 seeds (6 layers, lr 3e-3; `scripts/tasks/synth_final.txt`); reproduce Table 1 rows. FarmShare runs were lost to the outage on 2026-11-08; rerunning on Sherlock
-- [ ] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`); compare to Table 2. Rerunning on Sherlock (FarmShare outage)
+- [x] Synthetic training R0–R3 × 3 seeds (6 layers, lr 3e-3; `scripts/tasks/synth_final.txt`): Table 1 reproduced (Sherlock job 51581520, 2026-11-08; deviations in the experiment log)
+- [ ] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`); compare to Table 2. Running on Sherlock (job 51581524, started 2026-11-08)
 - [x] Activation hooks with `ego_mode` (`analysis/hooks.py`) and dissection code (`analysis/dissection.py`: rate-matched IoU + AP, signed units, permutation null, group bootstrap); tested on planted units and tiny graphs
-- [ ] Dissection on trained synthetic runs; first rung × concept heatmap
-- [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results)
+- [ ] Dissection on trained synthetic runs (`scripts/slurm/dissect_synth.sbatch`); first rung × concept heatmap (`analysis/plots.py`)
+- [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results): `docs/milestone_report.md`
 
 After the milestone: AML dissection, the exact-vs-batch ego experiment, cycle-length stratification, SAEs, ablations,
 probes, extra seeds. Then the blog figures and the Colab. The Ethereum check is the first thing to cut.

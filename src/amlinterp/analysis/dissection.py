@@ -26,7 +26,8 @@ Usage::
         --out runs/analysis/dissection_synth_test
 
 writes ``<out>.json`` (coverage per run, concept and layer) and ``<out>_summary.csv``
-(rung x concept, mean and sd over seeds).
+(rung x concept, mean and sd over seeds). Runs dissected separately (one ``--out`` per run, e.g. in
+parallel) are merged with ``--combine runs/analysis/<dir>/*.json --out <prefix>``.
 """
 
 from __future__ import annotations
@@ -285,8 +286,15 @@ def dissect_file(path: Path, n_boot: int = 100, n_perm: int = 20, quantile: floa
     }
 
 
+def _sd(x: np.ndarray) -> float:
+    return round(float(x.std(ddof=1)), 4) if len(x) > 1 else 0.0
+
+
 def summarize(results: list[dict], metric: str = "iou") -> list[dict]:
-    """Rung x concept table: mean and sd of coverage over the runs (seeds) of each rung."""
+    """Rung x concept table: mean and sd over the runs (seeds) of each rung.
+
+    ``mean``/``sd`` use coverage over all units; ``gnn_mean``/``gnn_sd`` only the GNN layers h1..hL.
+    """
     by_rung: dict[str, list[dict]] = {}
     for r in results:
         by_rung.setdefault(r["protocol"]["rung"], []).append(r)
@@ -295,10 +303,15 @@ def summarize(results: list[dict], metric: str = "iou") -> list[dict]:
         runs = by_rung[rung]
         for c in runs[0]["concepts"]:
             vals = np.array([r["concepts"][c][metric]["value"] for r in runs])
+            # GNN layers only (h1..hL): the decoder layers sit next to the output, so any accurate
+            # model covers its own target concepts there and the rung differences are hidden.
+            gnn = np.array([max(v for k, v in r["concepts"][c][metric]["per_layer"].items()
+                                if k.startswith("h") and k != "h0") for r in runs])
             nulls = [r["concepts"][c][metric].get("null_p95") for r in runs]
             rows.append({
                 "rung": rung, "concept": c, "metric": metric, "n_runs": len(runs),
-                "mean": round(float(vals.mean()), 4), "sd": round(float(vals.std(ddof=1)) if len(vals) > 1 else 0.0, 4),
+                "mean": round(float(vals.mean()), 4), "sd": _sd(vals),
+                "gnn_mean": round(float(gnn.mean()), 4), "gnn_sd": _sd(gnn),
                 "null_p95_mean": round(float(np.mean(nulls)), 4) if None not in nulls else None,
                 "base_rate": round(runs[0]["concepts"][c]["base_rate"], 4),
             })
@@ -308,7 +321,10 @@ def summarize(results: list[dict], metric: str = "iou") -> list[dict]:
 def main() -> None:
     """CLI entry point; see the module docstring."""
     p = argparse.ArgumentParser(description="Neuron dissection of extracted activations.")
-    p.add_argument("--acts", type=Path, nargs="+", required=True, help="activations_<split>.pt files")
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--acts", type=Path, nargs="+", help="activations_<split>.pt files")
+    src.add_argument("--combine", type=Path, nargs="+",
+                     help="merge earlier --out .json files (e.g. one per run from a job array) instead")
     p.add_argument("--out", type=Path, required=True, help="output prefix (writes .json and _summary.csv)")
     p.add_argument("--n-boot", type=int, default=100)
     p.add_argument("--n-perm", type=int, default=20)
@@ -316,7 +332,9 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     args = p.parse_args()
     results = []
-    for f in args.acts:
+    for f in args.combine or []:
+        results.extend(json.loads(f.read_text()))
+    for f in args.acts or []:
         r = dissect_file(f, args.n_boot, args.n_perm, args.quantile, args.seed)
         results.append(r)
         print(r["run_id"], {c: round(v["iou"]["value"], 3) for c, v in r["concepts"].items()}, flush=True)

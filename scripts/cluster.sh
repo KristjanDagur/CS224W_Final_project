@@ -9,7 +9,9 @@
 #   sherlock   the host is CentOS 7 (glibc 2.17), which cannot run the pinned torch 2.13 wheels
 #              (manylinux_2_28), and has no PyG module. Python therefore runs inside an Apptainer
 #              image (python:3.12-bookworm) with the same pinned venv. Image and venv live in
-#              $GROUP_HOME (not purged); data/, runs/ and logs/ are symlinks into $SCRATCH.
+#              $HOME/envs/amlinterp (6.7 GB; environments may not go on the purged $SCRATCH, and
+#              the user does not want $GROUP_HOME/$GROUP_SCRATCH used). data/, runs/ and logs/ are
+#              symlinks into $SCRATCH. Override the env location with AMLINTERP_ENV_ROOT.
 #
 # Exposes: CLUSTER, REPO, VENV, SIF (empty = no container), SIF_SOURCE, STORAGE_ROOT
 # (empty = keep data/runs/logs in the repo), and the sbatch flag arrays GPU_FLAGS and CPU_FLAGS.
@@ -35,7 +37,7 @@ case $CLUSTER in
         CPU_FLAGS=(--partition=normal --exclude=barley-04)
         ;;
     sherlock)
-        ENV_ROOT=$GROUP_HOME/$USER/amlinterp
+        ENV_ROOT=${AMLINTERP_ENV_ROOT:-$HOME/envs/amlinterp}  # personal env; user decision: no group folders
         VENV=$ENV_ROOT/venv
         SIF=$ENV_ROOT/py312-bookworm.sif
         SIF_SOURCE=docker://python:3.12-bookworm

@@ -72,6 +72,7 @@ src/amlinterp/
   train.py              training/eval entry point (one config = one run, resumable)  (done)
   analysis/hooks.py     activation extraction per scored item + batch protocol / ego mode (done)
   analysis/dissection.py  unit x concept IoU + AP, coverage, permutation null, bootstrap CIs (done)
+  analysis/plots.py      dissection figures (rung x concept, concept x layer) + their CSV tables (done)
   analysis/sae.py
   analysis/ablation.py
   analysis/probes.py
@@ -110,7 +111,7 @@ TASKS=scripts/tasks/aml_final.txt scripts/submit.sh gpu --array=0-11 --cpus-per-
 ```
 
 On Sherlock (CentOS 7, glibc 2.17) the pinned torch wheels cannot run on the host, so `setup_env.sh` builds the
-same pinned venv inside an Apptainer image (`python:3.12-bookworm`) in `$GROUP_HOME/$USER/amlinterp/`, and
+same pinned venv inside an Apptainer image (`python:3.12-bookworm`) in `$HOME/envs/amlinterp/`, and
 `activate.sh` makes `python` run through it. `data/`, `runs/` and `logs/` are symlinks into `$SCRATCH/CS224W/`.
 
 **AMLworld data.** Download `HI-Small_Trans.csv` and `HI-Small_Patterns.txt` from Kaggle
