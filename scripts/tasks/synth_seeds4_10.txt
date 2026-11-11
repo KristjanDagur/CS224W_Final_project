@@ -1,0 +1,35 @@
+--config configs/synthetic.yaml --rung R0 --seed 4 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 4 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 4 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 4 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 4 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 5 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 5 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 5 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 5 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 5 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 6 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 6 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 6 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 6 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 6 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 7 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 7 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 7 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 7 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 7 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 8 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 8 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 8 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 8 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 8 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 9 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 9 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 9 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 9 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 9 --set lr=3e-3 num_workers=4 num_layers=7
+--config configs/synthetic.yaml --rung R0 --seed 10 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R1 --seed 10 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R2 --seed 10 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 10 --set lr=3e-3 num_workers=4
+--config configs/synthetic.yaml --rung R3 --seed 10 --set lr=3e-3 num_workers=4 num_layers=7

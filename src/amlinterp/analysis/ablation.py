@@ -11,8 +11,9 @@ For one trained synthetic run:
    (``GINLadder.set_intervention``), so the change propagates through later message passing and the
    readout. The run then scores test F1 for every concept at the decision thresholds tuned on
    validation *before* ablating (``thresholds.json``; AGENTS.md fact 8).
-4. **Random-unit control.** ``n_random`` single GNN units are drawn uniformly and ablated the same
-   way, giving the drop that ablating an arbitrary unit causes.
+4. **Random-unit controls.** ``n_random`` single GNN units, and ``n_random`` random sets of
+   ``top_k`` units (the size-matched control for the top-k ablation), are drawn uniformly and ablated
+   the same way. Significance tests are in ``analysis.ablation_stats``.
 
 The effect of ablating a set of units is ``delta[c] = F1_clean[c] - F1_ablated[c]``, in F1 points. A
 unit is a used, concept-specific detector if ablating it hurts its own concept clearly more than
@@ -110,6 +111,34 @@ def select_units(acts_val: Path, top_k: int) -> tuple[list[str], dict[str, list[
     return labels, chosen, scores
 
 
+def random_unit_sets(n_layers: int, hidden: int, size: int, n: int, rng: np.random.Generator) -> list[list[tuple[int, int]]]:
+    """``n`` sets of ``size`` distinct GNN units (layers 1..n_layers), drawn uniformly without replacement."""
+    pool = [(layer, unit) for layer in range(1, n_layers + 1) for unit in range(hidden)]
+    return [[pool[i] for i in rng.choice(len(pool), size=size, replace=False)] for _ in range(n)]
+
+
+def add_random_sets(run_dir: Path, result: dict, size: int, n: int = 20, seed: int = 0, device: str = "cpu") -> dict:
+    """Add a size-matched random control (``n`` random sets of ``size`` units) to an existing ablation result.
+
+    Top-k ablations must be compared with random sets of the same size, not single units. The sets are
+    drawn from a separate RNG stream (``seed + 1000 * size``), so they do not repeat the single-unit draws.
+    """
+    cfg, task, model = load_run(Path(run_dir), device)
+    seed_everything(seed)
+    thr_map = json.loads((Path(run_dir) / "thresholds.json").read_text())
+    thresholds = np.array([thr_map[c] for c in result["labels"]])
+    means = unit_means(model, task, "train", device)
+    clean = test_f1(model, task, thresholds, device)
+    rng = np.random.default_rng(seed + 1000 * size)
+    sets = random_unit_sets(cfg["num_layers"], cfg["hidden"], size, n, rng)
+    deltas = [(clean - test_f1(model, task, thresholds, device, mean_ablation(u, means))).round(3).tolist() for u in sets]
+    result.setdefault("random_sets", {})[str(size)] = {
+        "units": [[f"h{l}:{u}" for l, u in s] for s in sets], "deltas": deltas,
+        "clean_f1_check": clean.round(3).tolist(),
+    }
+    return result
+
+
 def ablate_run(run_dir: Path, top_k: int = 5, n_random: int = 20, seed: int = 0, device: str = "cpu") -> dict:
     """The full ablation experiment for one run (see the module docstring). Returns a JSON-ready dict."""
     run_dir = Path(run_dir)
@@ -134,12 +163,16 @@ def ablate_run(run_dir: Path, top_k: int = 5, n_random: int = 20, seed: int = 0,
     hidden, n_layers = cfg["hidden"], cfg["num_layers"]
     random_units = [(int(rng.integers(1, n_layers + 1)), int(rng.integers(0, hidden))) for _ in range(n_random)]
     random_deltas = [delta([u]) for u in random_units]
+    sets = random_unit_sets(n_layers, hidden, top_k, n_random, np.random.default_rng(seed + 1000 * top_k))
+    random_sets = {str(top_k): {"units": [[f"h{l}:{u}" for l, u in st] for st in sets],
+                                "deltas": [delta(st) for st in sets]}}
     return {
         "run_id": cfg["run_id"], "rung": cfg["rung"], "num_layers": n_layers, "labels": labels,
         "protocol": {"ego_mode": cfg["ego_mode"], "means": "train split, all nodes", "selection": "val, signed AUROC",
                      "thresholds": "val-tuned (thresholds.json)", "top_k": top_k, "n_random": n_random, "seed": seed},
         "clean_f1": clean.round(3).tolist(), "concepts": per_concept,
         "random_units": [f"h{l}:{u}" for l, u in random_units], "random_deltas": random_deltas,
+        "random_sets": random_sets,
     }
 
 
@@ -175,7 +208,18 @@ def main() -> None:
     p.add_argument("--top-k", type=int, default=5)
     p.add_argument("--n-random", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--add-random-k", type=int, default=None,
+                   help="with --run: add random sets of this size to the existing <out>/<run_id>.json instead of rerunning")
     args = p.parse_args()
+    if args.run and args.add_random_k:
+        run_id = json.loads((args.run / "config.json").read_text())["run_id"]
+        path = args.out / f"{run_id}.json"
+        res = add_random_sets(args.run, json.loads(path.read_text()), args.add_random_k, args.n_random, args.seed)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(res, indent=2))
+        tmp.replace(path)
+        print(f"added {args.n_random} random sets of {args.add_random_k} units to {path}")
+        return
     if args.run:
         try:  # array tasks create this concurrently; on NFS, mkdir(exist_ok=True) can still raise on a race
             args.out.mkdir(parents=True, exist_ok=True)
