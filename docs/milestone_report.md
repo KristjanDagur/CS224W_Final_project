@@ -4,9 +4,11 @@
 
 Kristjan Egilsson (kde2804@stanford.edu)
 
-Milestone submission, 2026-11-11. Code: `src/amlinterp/` (data processing, models, training and
-evaluation, analysis), with unit tests in `tests/`. Every number here is traceable to
-`docs/experiment_log.md`.
+Milestone submission, 2026-11-11.
+
+**Code:** <https://github.com/KristjanDagur/CS224W_Final_project>. The package `src/amlinterp/` holds data
+processing, models, training and evaluation, and analysis, with unit tests in `tests/`. Every number here is
+traceable to `docs/experiment_log.md`.
 
 ## 1. Problem and motivation
 
@@ -18,12 +20,12 @@ any directed subgraph pattern in a directed multigraph, and that they greatly im
 detection on IBM's AMLworld benchmark.
 
 Higher F1 does not show *how* the improved models work, and a compliance analyst needs to know whether a
-flag reflects a laundering pattern or a shortcut. Our question:
+flag reflects a laundering pattern or a shortcut. My question:
 
 > When an adaptation provably unlocks a pattern, does the trained model develop internal features that
 > detect it, and does it rely on them?
 
-We train an *expressiveness ladder* of four models that differ by exactly one adaptation each, and test
+I train an *expressiveness ladder* of four models that differ by exactly one adaptation each, and test
 three hypotheses:
 
 - **H1:** concept coverage (how well the best single unit detects a pattern) grows along the ladder as the
@@ -42,7 +44,7 @@ This milestone reports:
 
 ### 2.1 Synthetic graphs with exact pattern labels
 
-We follow Egressy et al. App. D. Each graph is a random circulant directed multigraph:
+I follow Egressy et al. App. D. Each graph is a random circulant directed multigraph:
 - n = 8,192 nodes and m = ⌊nd/2⌋ = 24,576 edges (average degree d = 6);
 - each edge picks u uniformly and v = round(N(u, r)) mod n with r = 11.1;
 - self-loops are re-drawn;
@@ -59,7 +61,7 @@ Every node gets 11 binary labels, computed by *enumerating* each pattern in the 
 
 The labelers are unit-tested against brute force on small graphs.
 
-**Change from the proposal.** The proposal said patterns would be *planted*. We instead label the patterns
+**Change from the proposal.** The proposal said patterns would be *planted*. I instead label the patterns
 that occur naturally in random graphs, as Egressy et al. do. Planting adds extra edges, so pattern nodes
 would have higher degree than other nodes. A degree neuron would then look like a cycle detector. This
 "degree shortcut" is exactly the confound an interpretability study has to avoid.
@@ -67,17 +69,17 @@ would have higher degree than other nodes. A degree neuron would then look like 
 Re-drawing self-loops matters: keeping them undershoots Egressy's positive rates by 2–5 points on C4–C6,
 S-G and B-C. With re-drawing, the train-graph rates match their Table 3 within about one sd (deg-in .348,
 C2 .200, C6 .784, S-G .322, B-C .322). The base rates range from 0.19 (C2) to 0.78 (C6). That range is
-why we use rate-matched thresholds and chance-corrected scores (Section 4).
+why I use rate-matched thresholds and chance-corrected scores (Section 4).
 
 ### 2.2 AMLworld HI-Small
 
-AMLworld (Altman et al., NeurIPS 2023) is a synthetic transaction dataset from an agent-based simulator. We
+AMLworld (Altman et al., NeurIPS 2023) is a synthetic transaction dataset from an agent-based simulator. I
 use HI-Small:
 - 515,088 accounts (nodes) and 5,078,345 transactions (directed, timestamped edges with amount,
   currency and payment format);
 - 5,177 laundering transactions (0.10%).
 
-The task is binary edge classification. We follow IBM's Multi-GNN preprocessing exactly, so our results
+The task is binary edge classification. I follow IBM's Multi-GNN preprocessing exactly, so my results
 are comparable to Egressy Table 2:
 - **Chronological day split.** It comes out at 64/19/17%, not the nominal 60/20/20. The illicit ratio
   rises across splits (0.078% → 0.107% → 0.186%), so thresholds tuned on validation see a shifted base
@@ -86,11 +88,11 @@ are comparable to Egressy Table 2:
 - **Per-split z-normalization** of edge features.
 - **Ports.** Each account numbers its counterparties in order of their first transaction. All edges
   with the same counterparty share a port, and reverse edges swap the in- and out-port columns. IBM
-  computes ports with a Python loop over 5M edges. We vectorized it (tested equal to IBM's loop) and
+  computes ports with a Python loop over 5M edges. I vectorized it (tested equal to IBM's loop) and
   cache the result.
 
 `HI-Small_Patterns.txt` lists the transactions of 370 laundering *attempts* of 8 pattern types:
-- 3,209 rows, all of which we match to edges;
+- 3,209 rows, all of which I match to edges;
 - they cover 62% of laundering transactions;
 - 147 attempts span a split boundary.
 
@@ -126,7 +128,7 @@ are chosen on validation only.
 - **AML:** IBM's GIN settings (lr 6.2e-3, class-weighted cross-entropy, [100, 100] neighbor sampling,
   batch 8,192, 2 layers, 100 epochs).
 
-**Ego IDs.** IBM's code marks the endpoints of *all* seed edges in a batch, not just the scored edge. We
+**Ego IDs.** IBM's code marks the endpoints of *all* seed edges in a batch, not just the scored edge. I
 implement both versions:
 - `batch` reproduces the benchmark and is used for AML training;
 - `exact` marks only the target and is used for synthetic training and for all synthetic activations.
@@ -138,16 +140,16 @@ R3's activations depend on this choice, so it is recorded with every saved activ
 **Task metrics.** Minority-class F1 (the benchmark standard) at the 0.5 threshold and at a
 validation-tuned threshold, plus PR-AUC.
 
-**Activations.** For each trained model we record, for every test item, all hidden layers h0..h6 and both
+**Activations.** For each trained model I record, for every test item, all hidden layers h0..h6 and both
 decoder layers. On synthetic data an item is a node, giving 523 units. On AML an item is an edge, and
 the representation is [h_u ‖ h_v] plus the decoder layers.
 
-**Neuron dissection (H1).** For unit k and binary concept c we compute two scores:
+**Neuron dissection (H1).** For unit k and binary concept c I compute two scores:
 - **IoU** = |M_k ∩ C_c| / |M_k ∪ C_c|, where the unit's mask M_k is its top-p_c fraction of items.
   Matching the concept's own base rate p_c is needed because the concepts are common (0.19–0.78) and a
   fixed top quantile would cap IoU.
 - **Average precision (AP)** of the unit's activation as a score for the concept. It is
-  threshold-free, and chance is p_c. We report it chance-corrected, (AP − p_c)/(1 − p_c), so 0 means a
+  threshold-free, and chance is p_c. I report it chance-corrected, (AP − p_c)/(1 − p_c), so 0 means a
   random unit and 1 a perfect detector.
 
 - **AUROC**: the probability that a random concept item activates the unit more than a random
@@ -160,7 +162,7 @@ the representation is [h_u ‖ h_v] plus the decoder layers.
 Hidden states can be negative, so each unit is scored in both directions. Concept *coverage* is the best
 score over units, overall and per layer.
 
-The best of hundreds of units beats single-unit chance easily, so we test it against a **permutation
+The best of hundreds of units beats single-unit chance easily, so I test it against a **permutation
 null**: concept labels are shuffled across items 20 times and the max over all units recomputed. A
 **bootstrap** (100 resamples, re-selecting the best unit each time) gives CIs. On AML, resampling is at
 the level of laundering attempts.
@@ -273,7 +275,7 @@ In the 6-layer R3 models, the first layer with a unit at AUROC ≥ 0.99 is h3 fo
 and h6 for C5. This holds in all three seeds (Fig. 2). C6 never gets there (0.90–0.94 at h6).
 - The theory only needs k layers for the ego bit to travel around a k-cycle. The trained models need
   at least one more.
-- **Test of the prediction.** We trained R3 with **7 layers**, changing nothing else
+- **Test of the prediction.** I trained R3 with **7 layers**, changing nothing else
   (seeds 1–3; results in `runs/analysis/depth_R3.md`).
   - C6 test F1 rises from **78.3 ± 0.6 to 93.4 ± 3.3**, above the paper's 84.2.
   - The best C6 unit at h7 reaches AUROC 0.99 / 0.94 / 0.99 (seed 1 crosses 0.99; at 6 layers:
