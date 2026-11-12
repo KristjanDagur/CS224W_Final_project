@@ -163,7 +163,7 @@ Milestone due **2026-11-11** 23:59 PT (course Project Instructions, Fall 2026; c
 - [x] AML training R0–R3 × 3 seeds (`scripts/tasks/aml_final.txt`): all 12 done on Sherlock (job 51581524, 2026-11-09). FarmShare job 1957135 duplicates seeds 2–3 (started later; see the log and `docs/handoff.md`). R1–R3 within ~1.4 sd of Table 2
 - [x] Activation hooks with `ego_mode` (`analysis/hooks.py`) and dissection code (`analysis/dissection.py`: rate-matched IoU + AP, signed units, permutation null, group bootstrap); tested on planted units and tiny graphs
 - [x] Dissection on trained synthetic runs (`scripts/slurm/dissect_synth.sbatch`, figures via `scripts/slurm/analyze_synth.sbatch`); rung × concept heatmaps, per-layer heatmaps, PR curves, degree baseline (`analysis/baselines.py`); written up in milestone report §5.2
-- [ ] Milestone report draft (problem, data and processing, model and metrics, preliminary results): `docs/milestone_report.md`
+- [x] Milestone report (problem, data and processing, models, metrics, preliminary results): `docs/milestone_report.md`, PDF `docs/milestone_report.pdf` built with `scripts/build_milestone_pdf.sh` (2026-11-10). H2 ablation results are deliberately held for the final report
 
 After the milestone: AML dissection, the exact-vs-batch ego experiment, cycle-length stratification, SAEs, ablations,
 probes, extra seeds. Then the blog figures and the Colab. The Ethereum check is the first thing to cut.

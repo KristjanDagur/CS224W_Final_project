@@ -1,9 +1,12 @@
 # What Do Provably Powerful GNNs Learn? Interpreting Money-Laundering Detectors on an Expressiveness Ladder
 
-**CS224W Project Milestone (Project 1: Application).** Kristjan Egilsson, kde2804@stanford.edu
+**CS224W Project Milestone (Project 1: Application)**
 
-> DRAFT (2026-11-08). Numbers marked TODO are filled in when the corresponding job finishes. Every number
-> here is traceable to `docs/experiment_log.md`.
+Kristjan Egilsson (kde2804@stanford.edu)
+
+Milestone submission, 2026-11-11. Code: `src/amlinterp/` (data processing, models, training and
+evaluation, analysis), with unit tests in `tests/`. Every number here is traceable to
+`docs/experiment_log.md`.
 
 ## 1. Problem and motivation
 
@@ -29,8 +32,11 @@ three hypotheses:
 - **H3:** where no single neuron detects a provably detectable pattern, sparse-autoencoder latents
   recover it.
 
-This milestone reports the data pipelines, the trained ladder on synthetic data (a reproduction of
-Egressy et al. Table 1), the AMLworld runs in progress, and the first dissection results.
+This milestone reports:
+- the data pipelines;
+- the trained ladder on synthetic data (a reproduction of Egressy et al. Table 1) and on AMLworld (a
+  reproduction of Table 2);
+- the first dissection results (H1), including a depth experiment that tests one of its predictions.
 
 ## 2. Datasets and processing
 
@@ -106,8 +112,8 @@ All rungs share the GIN-with-edge-features backbone of IBM Multi-GNN (PyG):
 | Rung | Adds | Theory: newly detectable |
 |---|---|---|
 | R0 | GIN | in-degree, edge statistics |
-| R1 | + reverse message passing (separate `to`/`rev_to` convolutions, mean-combined) | out-degree, fan-out |
-| R2 | + port numbers (in- and out-port as edge features) | fan-in, fan-out (unique counterparties) |
+| R1 | + reverse message passing (separate `to`/`rev_to` convolutions, averaged) | out-degree, fan-out |
+| R2 | + port numbers (in- and out-port as edge features) | fan-in, fan-out |
 | R3 | + ego IDs (a 0/1 feature on the target's endpoints) = Multi-GIN | cycles, scatter-gather, bicliques |
 
 **Controlled experiment.** Every rung uses the same hyperparameters, split, epoch budget,
@@ -180,12 +186,19 @@ any accurate model "covers" its own targets there.
 Test minority-class F1 (%), mean over 3 seeds at the 0.5 threshold; sd in parentheses where it is ≥ 2 points (and for the row means and R3 C6). Egressy Table 1 (mean of 5
 runs) in brackets.
 
-| Rung | deg-in | deg-out | fan-in | fan-out | C2 | C3 | C4 | C5 | C6 | S-G | B-C | mean |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| R0 GIN | 99.9 [99.8] | 20.9 (10.8) [43.6] | 95.3 [95.6] | 14.9 (9.3) [35.9] | 27.0 (6.3) [34.7] | 53.3 (4.6) [58.0] | 64.3 (3.3) [50.8] | 52.7 [43.1] | 52.3 [48.6] | 68.3 [69.3] | 64.9 (2.2) [63.1] | 55.8 (2.6) [58.4] |
-| R1 +reverse | 99.3 [98.9] | 99.3 [99.1] | 95.2 [95.0] | 96.0 [95.3] | 49.0 (2.2) [36.0] | 64.4 (2.0) [63.9] | 74.1 [69.1] | 73.6 [67.4] | 77.6 [71.2] | 68.7 [65.8] | 67.5 (2.2) [66.2] | 78.6 (0.4) [75.3] |
-| R2 +ports | 99.8 [98.4] | 99.2 [98.4] | 99.8 [98.5] | 99.7 [99.2] | 47.9 [39.2] | 63.5 [63.6] | 75.7 [69.0] | 73.4 [70.4] | 76.5 [75.0] | 67.5 [67.8] | 66.3 [65.8] | 79.0 (0.2) [76.8] |
-| R3 +ego IDs | 99.2 [99.5] | 99.8 [99.1] | 100.0 [99.6] | 99.9 [99.3] | 100.0 [99.0] | 100.0 [98.7] | 99.7 [97.5] | 98.2 [91.6] | 78.3 (0.6) [84.2] | 98.9 [97.4] | 98.3 [94.3] | 97.5 (0.1) [96.4] |
+| Rung | deg-in | deg-out | fan-in | fan-out | C2 | C3 |
+|---|---|---|---|---|---|---|
+| R0 GIN | 99.9 [99.8] | 20.9 (10.8) [43.6] | 95.3 [95.6] | 14.9 (9.3) [35.9] | 27.0 (6.3) [34.7] | 53.3 (4.6) [58.0] |
+| R1 +reverse | 99.3 [98.9] | 99.3 [99.1] | 95.2 [95.0] | 96.0 [95.3] | 49.0 (2.2) [36.0] | 64.4 (2.0) [63.9] |
+| R2 +ports | 99.8 [98.4] | 99.2 [98.4] | 99.8 [98.5] | 99.7 [99.2] | 47.9 [39.2] | 63.5 [63.6] |
+| R3 +ego IDs | 99.2 [99.5] | 99.8 [99.1] | 100.0 [99.6] | 99.9 [99.3] | 100.0 [99.0] | 100.0 [98.7] |
+
+| Rung | C4 | C5 | C6 | S-G | B-C | mean |
+|---|---|---|---|---|---|---|
+| R0 GIN | 64.3 (3.3) [50.8] | 52.7 [43.1] | 52.3 [48.6] | 68.3 [69.3] | 64.9 (2.2) [63.1] | 55.8 (2.6) [58.4] |
+| R1 +reverse | 74.1 [69.1] | 73.6 [67.4] | 77.6 [71.2] | 68.7 [65.8] | 67.5 (2.2) [66.2] | 78.6 (0.4) [75.3] |
+| R2 +ports | 75.7 [69.0] | 73.4 [70.4] | 76.5 [75.0] | 67.5 [67.8] | 66.3 [65.8] | 79.0 (0.2) [76.8] |
+| R3 +ego IDs | 99.7 [97.5] | 98.2 [91.6] | 78.3 (0.6) [84.2] | 98.9 [97.4] | 98.3 [94.3] | 97.5 (0.1) [96.4] |
 
 Each adaptation unlocks what the theory predicts:
 - **R1 (reverse):** out-degree jumps from 21 to 99 and fan-out from 15 to 96.
@@ -215,8 +228,15 @@ Deviations, logged as found:
 - Cross-check: activations re-extracted on a second cluster reproduce the dissection exactly (difference
   0.00, same best unit for all 11 concepts).
 
-Figures: `runs/analysis/figures/coverage_auroc.png` (Fig. 1), `layers_R3_auroc.png` (Fig. 2) and
-`pr_curves.png` (Fig. 3; each unit is chosen on validation and its curve drawn on test).
+![Concept coverage: AUROC of the best single GNN unit (h1–h6) per rung and concept, mean
+of 3 seeds. Outlined cells mark the rung at which the theory makes the concept detectable.](figures/coverage_auroc.png){width=100%}
+
+![R3 (6 layers): AUROC of the best unit in each layer, per concept, mean of 3 seeds. The
+k-cycle detector first appears at layer k + 1.](figures/layers_R3_auroc.png){width=55%}
+
+![Precision-recall curves of each rung's best GNN unit per concept. The unit is chosen on the
+validation graph and the curve drawn on the test graph (mean of 3 seeds). The grey line is the concept's
+base rate.](figures/pr_curves.png){width=100%}
 
 **Caveat.** On synthetic data the concepts are also the training targets. An accurate model must encode
 them somewhere, so coverage partly restates Table 1. The two controls below carry the
@@ -254,7 +274,7 @@ and h6 for C5. This holds in all three seeds (Fig. 2). C6 never gets there (0.90
 - The theory only needs k layers for the ego bit to travel around a k-cycle. The trained models need
   at least one more.
 - **Test of the prediction.** We trained R3 with **7 layers**, changing nothing else
-  (`synth_R3_L7_h64_s{1,2,3}`; `runs/analysis/depth_R3.md`).
+  (seeds 1–3; results in `runs/analysis/depth_R3.md`).
   - C6 test F1 rises from **78.3 ± 0.6 to 93.4 ± 3.3**, above the paper's 84.2.
   - The best C6 unit at h7 reaches AUROC 0.99 / 0.94 / 0.99 (seed 1 crosses 0.99; at 6 layers:
     0.93 / 0.94 / 0.90).
@@ -278,20 +298,20 @@ probes, to separate "represented" from "dedicated unit".
 Three seeds per rung. Regenerate with `python -m amlinterp.analysis.aml_table`, which writes
 `runs/analysis/aml_ladder_table.{md,csv}`.
 
-| Rung | Seeds | F1 @ 0.5 | Egressy Table 2 | F1 @ val-tuned thr. | Thresholds picked | Test PR-AUC | PR-AUC of random |
-|---|---|---|---|---|---|---|---|
-| R0 GIN | 1 2 3 | 35.23 ± 7.89 | 28.70 ± 1.13 | 35.99 ± 8.13 | 0.60 / 0.55 / 0.60 | 27.86 ± 9.46 | 0.19 |
-| R1 +reverse MP | 1 2 3 | 53.04 ± 4.74 | 46.79 ± 4.97 | 54.03 ± 4.74 | 0.55 / 0.55 / 0.55 | 52.92 ± 6.57 | 0.19 |
-| R2 +ports | 1 2 3 | 60.47 ± 3.63 | 56.85 ± 2.64 | 61.95 ± 2.40 | 0.60 / 0.60 / 0.55 | 60.13 ± 0.99 | 0.19 |
-| R3 +ego IDs | 1 2 3 | 55.66 ± 9.30 | 57.15 ± 4.99 | 61.07 ± 3.67 | 0.75 / 0.50 / 0.75 | 58.51 ± 3.83 | 0.19 |
+| Rung | F1 @ 0.5 | Egressy T. 2 | F1 @ tuned thr. | Thresholds | PR-AUC | Random |
+|---|---|---|---|---|---|---|
+| R0 GIN | 35.23 ± 7.89 | 28.70 ± 1.13 | 35.99 ± 8.13 | 0.60 / 0.55 / 0.60 | 27.86 ± 9.46 | 0.19 |
+| R1 +reverse MP | 53.04 ± 4.74 | 46.79 ± 4.97 | 54.03 ± 4.74 | 0.55 / 0.55 / 0.55 | 52.92 ± 6.57 | 0.19 |
+| R2 +ports | 60.47 ± 3.63 | 56.85 ± 2.64 | 61.95 ± 2.40 | 0.60 / 0.60 / 0.55 | 60.13 ± 0.99 | 0.19 |
+| R3 +ego IDs | 55.66 ± 9.30 | 57.15 ± 4.99 | 61.07 ± 3.67 | 0.75 / 0.50 / 0.75 | 58.51 ± 3.83 | 0.19 |
 
 How to read the columns (all values are percentages; mean ± sd over seeds):
 - **F1 @ 0.5** is laundering-class F1 on test when a transaction is flagged at P(laundering) > 0.5.
   This is IBM's argmax, the number Egressy Table 2 reports.
-- **F1 @ val-tuned thr.** uses the cut-off that maximizes validation F1 (grid 0.05–0.95). Test never
-  influences the choice. The cut-off each seed picked is listed.
-- **PR-AUC** (average precision) is threshold-free. A random scorer's expected value is the positive
-  rate, which is the test illicit ratio of 0.19%.
+- **F1 @ tuned thr.** uses the cut-off that maximizes validation F1 (grid 0.05–0.95). Test never
+  influences the choice. **Thresholds** lists the cut-off each seed picked.
+- **PR-AUC** (test average precision) is threshold-free. **Random** is a random scorer's expected
+  value: the positive rate, i.e. the test illicit ratio of 0.19%.
 
 Observations:
 - **The ladder reproduces Egressy Table 2 within noise.** R1–R3 are within about 1.4 of the paper's
@@ -311,12 +331,31 @@ Observations:
 
 ## 6. Plan for the rest of the quarter
 
-- **Nov 11–20:** AML dissection with the confound controls below; exact-vs-batch ego comparison;
-  ablations (H2).
+- **Already in progress.** The mean-ablation pipeline for H2 is implemented and tested (training-split
+  means, validation-selected units and thresholds, size-matched random-unit controls, seed-level t-tests
+  with Benjamini–Hochberg FDR). The synthetic ladder has been retrained with seeds 4–10, so these tests
+  have 10 seeds per rung. Results will be reported in the final report.
+- **Nov 11–20:** AML dissection with the confound controls below, and the exact-vs-batch ego comparison.
   - Pattern masks are subsets of the laundering label, so every result is reported against a
     laundering-label baseline.
   - Structural concepts are computed for all edges, not just laundering ones.
   - CIs are bootstrapped at the attempt level.
-- **Nov 20–28:** sparse autoencoders and probes (H3) on both datasets; a degree-matched control for
-  cycle detectors (cycle membership correlates with degree even in random graphs).
+- **Nov 20–28:** sparse autoencoders and linear probes (H3) on both datasets, plus concepts the models
+  were not trained on (e.g. cycle counts), to separate "represented" from "dedicated unit".
 - **Dec 1–10:** blog post and Colab. The optional Ethereum check is the first item to cut.
+
+## References
+
+- E. Altman et al. Realistic synthetic financial transactions for anti-money laundering models. NeurIPS
+  Datasets and Benchmarks, 2023.
+- D. Bau, B. Zhou, A. Khosla, A. Oliva and A. Torralba. Network dissection: quantifying interpretability
+  of deep visual representations. CVPR, 2017.
+- B. Egressy et al. Provably powerful graph neural networks for directed multigraphs. AAAI, 2024.
+- M. Fey and J. E. Lenssen. Fast graph representation learning with PyTorch Geometric. ICLR Workshop on
+  Representation Learning on Graphs and Manifolds, 2019.
+- L. Gao et al. Scaling and evaluating sparse autoencoders. arXiv:2406.04093, 2024.
+- W. Hu et al. Strategies for pre-training graph neural networks. ICLR, 2020.
+- K. Xu, W. Hu, J. Leskovec and S. Jegelka. How powerful are graph neural networks? ICLR, 2019.
+- H. Xuanyuan, P. Barbiero, D. Georgiev, L. C. Magister and P. Liò. Global concept-based interpretability
+  for graph neural networks via neuron analysis. AAAI, 2023.
+- J. You, J. M. Gomes-Selman, R. Ying and J. Leskovec. Identity-aware graph neural networks. AAAI, 2021.
